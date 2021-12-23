@@ -3,16 +3,13 @@ import networkx as nx
 
 
 def main():
-    # 1generate Grid
-    u = uuid.uuid4()
-    print(u)
-    graph = nx.Graph()
-    graph.add_node(u)
 
-    print(graph)
-    # 2run simulation
 
-    # 3plot data
+#
+# create a grit=new Grit()
+# simulatuion=Simulation(grit)
+# simulation.start
+# plot(simulaion.getData)
 
 
 if __name__ == "__main__":

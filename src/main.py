@@ -1,15 +1,11 @@
-import uuid
-import networkx as nx
+from src.grid import Grid
+from src.simulation import Simulation
 
 
 def main():
-
-
-#
-# create a grit=new Grit()
-# simulatuion=Simulation(grit)
-# simulation.start
-# plot(simulaion.getData)
+    steps = 100
+    simulation = Simulation(Grid(steps), steps)
+    simulation.run()
 
 
 if __name__ == "__main__":

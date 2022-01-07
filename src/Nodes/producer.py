@@ -14,3 +14,15 @@ class Producer:
 
     def get_amount(self, step):
         return self.price * self.supply_per_step[step]
+
+    def get_sold_per_step(self, step):
+        return self.sold_per_step[step]
+
+    def buy(self, amount_cash, step):
+        supply_cash = (self.get_amount(step) - self.get_sold_per_step(step)) * self.get_price(step)
+        if supply_cash - amount_cash >= 0:
+            self.sold_per_step[step] = self.sold_per_step[step] + amount_cash / self.get_price(step)
+            return amount_cash
+        else:
+            self.sold_per_step[step] = self.supply_per_step[step]
+            return supply_cash

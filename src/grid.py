@@ -1,13 +1,15 @@
 import numpy as np
 from src.Nodes.consumer import Consumer
 from src.Nodes.producer import Producer
+import networkx as nx
+from abc import ABC
 
 
-class Grid:
+class Grid():
     def __init__(self, steps: int):
         self.steps = steps
-        self.producers = [Producer(1, steps), Producer(1, steps)]
-        self.consumers = [Consumer(steps), Consumer(steps), Consumer(steps), Consumer(steps), Consumer(steps)]
+        self.producers = [Producer(1, steps), Producer(2, steps)]
+        self.consumers = [Consumer(steps), Consumer(steps), Consumer(steps), Consumer(steps), ]
         self.mat = [[1] * 2] * 5
 
     def get_amounts(self, step):
@@ -29,3 +31,9 @@ class Grid:
 
     def get_steps(self):
         return self.steps
+
+    def get_consumers(self):
+        return self.consumers
+
+    def get_producers(self):
+        return self.producers

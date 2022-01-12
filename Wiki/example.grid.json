@@ -1,0 +1,41 @@
+{
+  "name": "simple 2 grid with one producer on consumer each",
+  "simulation_steps": 10,
+  "network": {
+    "type": "grid",
+    "nodes": [
+      {
+        "type": "consumer",
+        "demand_steps": "random",
+        "transport_eff": 0.8,
+        "average": 9
+      },
+      {
+        "type": "producer",
+        "demand_steps": "random",
+        "transport_eff": 0.7,
+        "average": 10
+      },
+      {
+        "type": "grid",
+        "nodes": [
+          {
+            "type": "consumer",
+            "demand_steps": "random",
+            "transport_eff": 0.8,
+            "average": 9
+          },
+          {
+            "type": "producer",
+            "demand_steps": "random",
+            "transport_eff": 0.7,
+            "average": 10
+          }
+        ],
+        "transport_eff": 0.2
+      }
+    ]
+  }
+}
+
+

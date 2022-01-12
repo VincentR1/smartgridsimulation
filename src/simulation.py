@@ -1,8 +1,6 @@
-import numpy as np
 import matplotlib.pyplot as plt
 
-from src.Nodes.consumer import Consumer
-from src.grid import Grid
+from src.Nodes.grid import Grid
 
 
 class Simulation:

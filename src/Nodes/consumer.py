@@ -5,16 +5,21 @@ from src.Nodes.node import Node
 
 
 class Consumer(Node):
-    def __init__(self, steps):
-        demand_amount = random.randint(1, 1)
-        self.demand_per_step = [random.randint(0, 1) * demand_amount for i in range(steps)]
-        self.bought_per_step = [0] * steps
+    def __init__(self, demand_per_step):
+        self.demand_per_step = demand_per_step
+        self.bought_per_step = [0] * len(demand_per_step)
 
-    def get_balance(self, step: int) -> (float, float):
-        return -self.demand_per_step[step], 0
+    def get_balance(self, step: int) -> (float, float, float):
+        return -self.demand_per_step[step], 0, 1
 
     def settle(self, step, overflow):
         if overflow <= 0:
-            self.bought_per_step[step] = self.demand_per_step[step] + overflow
+            if -overflow >= self.demand_per_step[step]:
+                return_flow = overflow + self.demand_per_step[step]
+                self.bought_per_step[step] = 0
+            else:
+                return_flow = 0;
+                self.bought_per_step[step] = self.demand_per_step[step] + overflow
+            return return_flow, -self.bought_per_step[step], 0, 1, 1
         else:
             print("settle was given a positiv overflow in in a consumer")

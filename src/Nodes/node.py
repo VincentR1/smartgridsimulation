@@ -13,3 +13,7 @@ class Node(ABC):
     @abstractmethod
     def settle(self, step: int, overflow: float) -> (float, float, float):
         pass
+
+    @abstractmethod
+    def clear_up(self, step: int):
+        pass

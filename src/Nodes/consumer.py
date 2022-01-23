@@ -5,6 +5,9 @@ from src.Nodes.node import Node
 
 
 class Consumer(Node):
+    def clear_up(self, step: int):
+        self.bought_per_step[step] = self.demand_per_step[step]
+
     def __init__(self, demand_per_step):
         self.demand_per_step = demand_per_step
         self.bought_per_step = [0] * len(demand_per_step)
@@ -18,7 +21,7 @@ class Consumer(Node):
                 return_flow = overflow + self.demand_per_step[step]
                 self.bought_per_step[step] = 0
             else:
-                return_flow = 0;
+                return_flow = 0
                 self.bought_per_step[step] = self.demand_per_step[step] + overflow
             return return_flow, -self.bought_per_step[step], 0, 1, 1
         else:

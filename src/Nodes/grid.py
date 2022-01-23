@@ -7,9 +7,14 @@ from src.Nodes.node import Node
 
 
 class Grid(Node):
+    def clear_up(self, step: int):
+        while self.unsetteld_nodes_eff_balance_loss_mineff:
+            (self.unsetteld_nodes_eff_balance_loss_mineff.pop())[0].clear_up(step)
+
     def start(self, step):
-        balance_loss = self.get_balance(step)
-        result = self.start_settling(step, balance_loss[0])
+        balance, loss, min_eff = self.get_balance(step)
+        result = self.start_settling(step, balance)
+        self.clear_up(step)
         return result
 
     # gives back (balance,loss)
@@ -44,7 +49,7 @@ class Grid(Node):
         self.min_eff = min_eff_consumer_producer[self.local_balances[step] > 0]
         return self.local_balances[step], self.local_losses[step], self.min_eff
 
-    def __init__(self, steps: int, nodes, transport_efficiencies):
+    def __init__(self, steps: int, nodes: list[Node], transport_efficiencies: list[float]):
         self.nodes = nodes
         self.transport_efficiencies = transport_efficiencies
         self.steps = steps
@@ -53,25 +58,27 @@ class Grid(Node):
         self.min_eff = 1
         self.unsetteld_nodes_eff_balance_loss_mineff = []
 
-    ##ToDo: Agam
-    ##import graph struckture from node x graph
+    # ToDo: Agam
+    # import graph struckture from node x graph
     def import_graph_from_networkx(self, graph):
         pass
 
-    ##import graph from text json example in the wiki
+    # import graph from text json example in the wiki
     def import_graph_from_file(self, ):
         pass
 
-    ##Adding one node to a Grid
+    # Adding one node to a Grid
     def adding_node(self, node: Node, transport_eff: float):
-        self.nodes.app
+        self.nodes.append(node)
+        self.transport_efficiencies.append(transport_eff)
 
     def start_settling(self, step, overflow):
-        overflow = overflow
-        while overflow < 0:
-            result = self.settle(step, overflow)
-            overflow -= result[0]
-        return result;
+        updated_overflow = overflow
+        while updated_overflow != 0:
+            result = self.settle(step, updated_overflow)
+            updated_overflow = result[0]
+
+        return result
 
     def settle(self, step, overflow):
         overflow = overflow
@@ -79,34 +86,74 @@ class Grid(Node):
         if overflow < 0:
             consumers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff if
                                                 ndlc[2] < 0]
-            print([a[2] for a in consumers_eff_demand_loss_mineff])
             consumers_eff_demand_loss_mineff.sort(
                 key=lambda x: x[3])
-        consumer, transport_eff, external_balance, external_loss, local_min_eff = consumers_eff_demand_loss_mineff.pop()
-        self.unsetteld_nodes_eff_balance_loss_mineff.remove(
-            (consumer, transport_eff, external_balance, external_loss, local_min_eff))
+            consumer, transport_eff, external_balance, external_loss, local_min_eff = consumers_eff_demand_loss_mineff.pop()
+            self.unsetteld_nodes_eff_balance_loss_mineff.remove(
+                (consumer, transport_eff, external_balance, external_loss, local_min_eff))
+            return_flow, updated_external_balance, updated_external_loss, updated_mineff, settled = consumer.settle(
+                step,
+                overflow * transport_eff)
 
-        return_flow, updated_external_balance, updated_external_loss, updated_mineff, settled = consumer.settle(step,
-                                                                                                                overflow * transport_eff)
+            updated_loss_on_transport = -updated_external_balance * (1 / transport_eff - 1)
+            if not settled:
+                self.unsetteld_nodes_eff_balance_loss_mineff.append((consumer, transport_eff,
+                                                                     updated_external_balance / transport_eff,
+                                                                     updated_external_loss + updated_loss_on_transport,
+                                                                     updated_mineff * transport_eff))
+            # updating local values
+            return_flow_after_transport = return_flow / transport_eff
+            self.local_balances[step] -= overflow - return_flow_after_transport
+            self.local_losses[step] += -external_loss + updated_external_loss + updated_loss_on_transport
 
-        if not settled:
-            self.unsetteld_nodes_eff_balance_loss_mineff.append((consumer, transport_eff,
-                                                                 updated_external_balance / transport_eff,
-                                                                 updated_external_loss, updated_mineff * transport_eff))
+            if self.unsetteld_nodes_eff_balance_loss_mineff:
+                external_min_eff_after_transport = [neblm[1] for neblm in self.unsetteld_nodes_eff_balance_loss_mineff
+                                                    if neblm[2] < 1]
+                self.min_eff = min(external_min_eff_after_transport)
+                return_settled = False
+            else:
+                self.min_eff = 1
+                return_settled = True
 
-        # updating local values
-        return_flow_after_transport = return_flow / transport_eff
-        self.local_balances[step] -= overflow - return_flow_after_transport
-        self.local_losses[step] -= (transport_eff - 1) * (
-                return_flow_after_transport - overflow) - external_loss + updated_external_loss
+            return return_flow_after_transport, self.local_balances[step], self.local_losses[
+                step], self.min_eff, return_settled
 
-        if consumers_eff_demand_loss_mineff:
-            external_min_eff_after_transport = [neblm[1] for neblm in self.unsetteld_nodes_eff_balance_loss_mineff]
-            self.min_eff = min(external_min_eff_after_transport)
-            return_settled = False
+        # overproduction
         else:
-            self.min_eff = 1
-            return_settled = True
+            producers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff if
+                                                ndlc[2] > 0]
+            producers_eff_demand_loss_mineff.sort(
+                key=lambda x: x[3])
+            producer, transport_eff, external_balance, external_loss, local_min_eff = producers_eff_demand_loss_mineff.pop()
 
-        return return_flow_after_transport, self.local_balances[step], self.local_losses[
-            step], self.min_eff, return_settled
+            self.unsetteld_nodes_eff_balance_loss_mineff.remove(
+                (producer, transport_eff, external_balance, external_loss, local_min_eff))
+
+            return_flow, updated_external_balance, updated_external_loss, updated_mineff, settled = producer.settle(
+                step,
+                overflow / transport_eff)
+
+            update_loss_on_transport = (1 - transport_eff) * updated_external_balance
+            if not settled:
+                updated_peblm = (producer, transport_eff,
+                                 updated_external_balance * transport_eff,
+                                 updated_external_loss + update_loss_on_transport,
+                                 updated_mineff * transport_eff)
+                self.unsetteld_nodes_eff_balance_loss_mineff.append(updated_peblm)
+                producers_eff_demand_loss_mineff.append(updated_peblm)
+
+            return_flow_after_transport = return_flow * transport_eff
+            self.local_balances[step] -= overflow - return_flow_after_transport
+            self.local_losses[step] += - external_loss + updated_external_loss + update_loss_on_transport
+            print(external_loss)
+            print(self.local_losses[step])
+            if producers_eff_demand_loss_mineff:
+                external_min_eff_after_transport = [neblm[1] for neblm in producers_eff_demand_loss_mineff]
+                self.min_eff = min(external_min_eff_after_transport)
+                return_settled = False
+            else:
+                self.min_eff = 1
+                return_settled = True
+
+            return return_flow_after_transport, self.local_balances[step], self.local_losses[
+                step], self.min_eff, return_settled

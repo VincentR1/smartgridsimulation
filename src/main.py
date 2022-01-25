@@ -1,12 +1,6 @@
-from src.grid import Grid
-from src.simulation import Simulation
-
-
-def main():
-    steps = 100
-    simulation = Simulation(Grid(steps), steps)
-    simulation.run()
-
+from src.Nodes.generators.consumer.simple_consumers import DayOnNightOff
+from src.Nodes.generators.grids.simple_grids import SimpleGrid, SimpleGridWurm
+from test import test
 
 if __name__ == "__main__":
-    main()
+    test()

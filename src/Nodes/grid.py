@@ -72,6 +72,12 @@ class Grid(Node):
         self.nodes.append(node)
         self.transport_efficiencies.append(transport_eff)
 
+    def adding_nodes(self, nodes: list[Node], trasport_effs: list[float]):
+        if (len(nodes) != len(trasport_effs)):
+            raise Exception("Arrays length are not matching")
+        self.nodes += nodes
+        self.transport_efficiencies += trasport_effs
+
     def start_settling(self, step, overflow):
         updated_overflow = overflow
         while updated_overflow != 0:
@@ -82,6 +88,7 @@ class Grid(Node):
 
     def settle(self, step, overflow):
         overflow = overflow
+        print(overflow)
         ##underproduction
         if overflow < 0:
             consumers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff if
@@ -97,18 +104,19 @@ class Grid(Node):
 
             updated_loss_on_transport = -updated_external_balance * (1 / transport_eff - 1)
             if not settled:
-                self.unsetteld_nodes_eff_balance_loss_mineff.append((consumer, transport_eff,
-                                                                     updated_external_balance / transport_eff,
-                                                                     updated_external_loss + updated_loss_on_transport,
-                                                                     updated_mineff * transport_eff))
+                cedlma = (consumer, transport_eff,
+                          updated_external_balance / transport_eff,
+                          updated_external_loss + updated_loss_on_transport,
+                          updated_mineff * transport_eff)
+                self.unsetteld_nodes_eff_balance_loss_mineff.append(cedlma)
+                consumers_eff_demand_loss_mineff.append(cedlma)
             # updating local values
             return_flow_after_transport = return_flow / transport_eff
             self.local_balances[step] -= overflow - return_flow_after_transport
             self.local_losses[step] += -external_loss + updated_external_loss + updated_loss_on_transport
 
-            if self.unsetteld_nodes_eff_balance_loss_mineff:
-                external_min_eff_after_transport = [neblm[1] for neblm in self.unsetteld_nodes_eff_balance_loss_mineff
-                                                    if neblm[2] < 1]
+            if consumers_eff_demand_loss_mineff:
+                external_min_eff_after_transport = [neblm[1] for neblm in consumers_eff_demand_loss_mineff]
                 self.min_eff = min(external_min_eff_after_transport)
                 return_settled = False
             else:
@@ -145,8 +153,6 @@ class Grid(Node):
             return_flow_after_transport = return_flow * transport_eff
             self.local_balances[step] -= overflow - return_flow_after_transport
             self.local_losses[step] += - external_loss + updated_external_loss + update_loss_on_transport
-            print(external_loss)
-            print(self.local_losses[step])
             if producers_eff_demand_loss_mineff:
                 external_min_eff_after_transport = [neblm[1] for neblm in producers_eff_demand_loss_mineff]
                 self.min_eff = min(external_min_eff_after_transport)

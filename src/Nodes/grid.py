@@ -8,24 +8,28 @@ from src.Nodes.node import Node
 
 class Grid(Node):
     def clear_up(self, step: int):
-        while self.unsetteld_nodes_eff_balance_loss_mineff:
-            (self.unsetteld_nodes_eff_balance_loss_mineff.pop())[0].clear_up(step)
+        while self.unsetteld_nodes_eff_balance_loss_mineff_types:
+            (self.unsetteld_nodes_eff_balance_loss_mineff_types.pop())[0].clear_up(step)
 
     def start(self, step):
-        balance, loss, min_eff = self.get_balance(step)
+        balance, loss, min_eff, types = self.get_balance(step)
         result = self.start_settling(step, balance)
         self.clear_up(step)
         return result
 
     # gives back (balance,loss)
     def get_balance(self, step: int) -> (float, float, float):
-        external_balances_losses_mineff = [n.get_balance(step) for n in self.nodes]
+        external_balances_losses_mineff_types = [n.get_balance(step) for n in self.nodes]
+        print(external_balances_losses_mineff_types)
         min_eff_consumer_producer = [1, 1]
+        setTypes = {}
         for i in range(len(self.nodes)):
+            types_for_node = external_balances_losses_mineff_types[i][3]
+            setTypes |= types_for_node
             ## calculating balance
-            external_balance = external_balances_losses_mineff[i][0]
+            external_balance = external_balances_losses_mineff_types[i][0]
             transport_eff = self.transport_efficiencies[i]
-            min_eff = transport_eff * external_balances_losses_mineff[i][2]
+            min_eff = transport_eff * external_balances_losses_mineff_types[i][2]
 
             if external_balance < 0:
                 external_balance_after_transport = external_balance / transport_eff
@@ -39,15 +43,16 @@ class Grid(Node):
                     min_eff_consumer_producer[1] = min_eff
 
             self.local_balances[step] += external_balance_after_transport;
-            external_loss_after_transport = loss_on_link + external_balances_losses_mineff[i][1]
+            external_loss_after_transport = loss_on_link + external_balances_losses_mineff_types[i][1]
             self.local_losses[step] += external_loss_after_transport
 
-            self.unsetteld_nodes_eff_balance_loss_mineff.append((self.nodes[i], transport_eff,
-                                                                 external_balance_after_transport,
-                                                                 external_loss_after_transport, min_eff))
+            self.unsetteld_nodes_eff_balance_loss_mineff_types.append((self.nodes[i], transport_eff,
+                                                                       external_balance_after_transport,
+                                                                       external_loss_after_transport, min_eff,
+                                                                       types_for_node))
 
         self.min_eff = min_eff_consumer_producer[self.local_balances[step] > 0]
-        return self.local_balances[step], self.local_losses[step], self.min_eff
+        return self.local_balances[step], self.local_losses[step], self.min_eff, setTypes
 
     def __init__(self, steps: int, nodes: list[Node], transport_efficiencies: list[float]):
         self.nodes = nodes
@@ -56,7 +61,7 @@ class Grid(Node):
         self.local_balances = [0] * steps
         self.local_losses = [0] * steps
         self.min_eff = 1
-        self.unsetteld_nodes_eff_balance_loss_mineff = []
+        self.unsetteld_nodes_eff_balance_loss_mineff_types = []
 
     # ToDo: Agam
     # import graph struckture from node x graph
@@ -91,13 +96,14 @@ class Grid(Node):
         print(overflow)
         ##underproduction
         if overflow < 0:
-            consumers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff if
-                                                ndlc[2] < 0]
-            consumers_eff_demand_loss_mineff.sort(
+            consumers_eff_demand_loss_mineff_types = [ndlc for ndlc in
+                                                      self.unsetteld_nodes_eff_balance_loss_mineff_types if
+                                                      ndlc[2] < 0]
+            consumers_eff_demand_loss_mineff_types.sort(
                 key=lambda x: x[3])
-            consumer, transport_eff, external_balance, external_loss, local_min_eff = consumers_eff_demand_loss_mineff.pop()
-            self.unsetteld_nodes_eff_balance_loss_mineff.remove(
-                (consumer, transport_eff, external_balance, external_loss, local_min_eff))
+            consumer, transport_eff, external_balance, external_loss, local_min_eff, types = consumers_eff_demand_loss_mineff_types.pop()
+            self.unsetteld_nodes_eff_balance_loss_mineff_types.remove(
+                (consumer, transport_eff, external_balance, external_loss, local_min_eff, types))
             return_flow, updated_external_balance, updated_external_loss, updated_mineff, settled = consumer.settle(
                 step,
                 overflow * transport_eff)
@@ -107,16 +113,16 @@ class Grid(Node):
                 cedlma = (consumer, transport_eff,
                           updated_external_balance / transport_eff,
                           updated_external_loss + updated_loss_on_transport,
-                          updated_mineff * transport_eff)
-                self.unsetteld_nodes_eff_balance_loss_mineff.append(cedlma)
-                consumers_eff_demand_loss_mineff.append(cedlma)
+                          updated_mineff * transport_eff, types)
+                self.unsetteld_nodes_eff_balance_loss_mineff_types.append(cedlma)
+                consumers_eff_demand_loss_mineff_types.append(cedlma)
             # updating local values
             return_flow_after_transport = return_flow / transport_eff
             self.local_balances[step] -= overflow - return_flow_after_transport
             self.local_losses[step] += -external_loss + updated_external_loss + updated_loss_on_transport
 
-            if consumers_eff_demand_loss_mineff:
-                external_min_eff_after_transport = [neblm[1] for neblm in consumers_eff_demand_loss_mineff]
+            if consumers_eff_demand_loss_mineff_types:
+                external_min_eff_after_transport = [neblm[1] for neblm in consumers_eff_demand_loss_mineff_types]
                 self.min_eff = min(external_min_eff_after_transport)
                 return_settled = False
             else:
@@ -128,14 +134,14 @@ class Grid(Node):
 
         # overproduction
         else:
-            producers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff if
+            producers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff_types if
                                                 ndlc[2] > 0]
             producers_eff_demand_loss_mineff.sort(
                 key=lambda x: x[3])
-            producer, transport_eff, external_balance, external_loss, local_min_eff = producers_eff_demand_loss_mineff.pop()
+            producer, transport_eff, external_balance, external_loss, local_min_eff, types = producers_eff_demand_loss_mineff.pop()
 
-            self.unsetteld_nodes_eff_balance_loss_mineff.remove(
-                (producer, transport_eff, external_balance, external_loss, local_min_eff))
+            self.unsetteld_nodes_eff_balance_loss_mineff_types.remove(
+                (producer, transport_eff, external_balance, external_loss, local_min_eff, types))
 
             return_flow, updated_external_balance, updated_external_loss, updated_mineff, settled = producer.settle(
                 step,
@@ -147,7 +153,7 @@ class Grid(Node):
                                  updated_external_balance * transport_eff,
                                  updated_external_loss + update_loss_on_transport,
                                  updated_mineff * transport_eff)
-                self.unsetteld_nodes_eff_balance_loss_mineff.append(updated_peblm)
+                self.unsetteld_nodes_eff_balance_loss_mineff_types.append(updated_peblm)
                 producers_eff_demand_loss_mineff.append(updated_peblm)
 
             return_flow_after_transport = return_flow * transport_eff

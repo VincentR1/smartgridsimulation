@@ -13,7 +13,7 @@ class Producer(Node):
         self.sold_per_step = [0] * len(supply_per_step)
 
     def get_balance(self, step: int) -> (float, float):
-        return self.supply_per_step[step], 0, 1
+        return self.supply_per_step[step], 0, 1, {}
 
     def settle(self, step, overflow):
         if overflow >= 0:

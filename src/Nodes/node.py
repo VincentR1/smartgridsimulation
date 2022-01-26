@@ -11,7 +11,7 @@ class Node(ABC):
         pass
 
     @abstractmethod
-    def settle(self, step: int, overflow: float) -> (float, float, float):
+    def settle(self, step: int, overflow: float) -> (float, float, float, set):
         pass
 
     @abstractmethod

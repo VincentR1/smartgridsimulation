@@ -7,11 +7,13 @@ H = nx.Graph()
 ##Draws random node positions with (no. of nodes, no. of connection for each nodes)
 G = nx.barabasi_albert_graph(20, 1)
 
-#H.add_node(5)
+H1 = "House 1"
+H2 = "House 2"
+H3 = "House 3"
 H.add_node(1,pos=(1,1))
 H.add_node(2, pos=(1,2))
 H.add_node(3, pos=(2,2))
-H1 = "House 1"
+
 H.add_node(H1, pos=(4,3))
 H.add_edge(1,2)
 H.add_edge(1,H1)

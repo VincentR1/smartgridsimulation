@@ -88,7 +88,6 @@ class Grid(Node):
 
     def settle(self, step, overflow):
         overflow = overflow
-        print(overflow)
         ##underproduction
         if overflow < 0:
             consumers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff if

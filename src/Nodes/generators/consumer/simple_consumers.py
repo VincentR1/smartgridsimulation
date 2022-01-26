@@ -2,6 +2,7 @@ from random import random
 
 from config import AVRG_CONSUMTION, WINDOW
 from src.Nodes.consumer import Consumer
+from matplotlib import pyplot as plt
 
 
 class SimpleConsumer(Consumer):
@@ -14,6 +15,7 @@ class RandomSingleHouse(Consumer):
         averarage_demand_in_watt_per_person_per_steps=AVRG_CONSUMTION
         demand_per_step=[(random.random()+1)*averarage_demand_in_watt_per_person_per_steps*WINDOW[i]for i in range(steps)]
         super(demand_per_step)
+
 
 
 class DayOnNightOff(Consumer):

@@ -1,35 +1,45 @@
 from abc import ABC
-
+from dataclasses import dataclass
 import numpy as np
 from src.Nodes.consumer import Consumer
 from src.Nodes.producer import Producer
-from src.Nodes.node import Node
+from src.Nodes.node import Node, BalanceReturn, SettleReturn
+
+
+@dataclass
+class Protocol:
+    node: Node
+    transport_eff: float
+    balance: float
+    loss: float
+    min_eff: float
+    types_for_node: set
 
 
 class Grid(Node):
     def clear_up(self, step: int):
-        while self.unsetteld_nodes_eff_balance_loss_mineff_types:
-            (self.unsetteld_nodes_eff_balance_loss_mineff_types.pop())[0].clear_up(step)
+        while self.protocols:
+            (self.protocols.pop())[0].clear_up(step)
 
     def start(self, step):
-        balance, loss, min_eff, types = self.get_balance(step)
-        result = self.start_settling(step, balance)
+        balance_return = self.get_balance(step)
+        result = self.start_settling(step, balance_return.balance)
         self.clear_up(step)
         return result
 
     # gives back (balance,loss)
-    def get_balance(self, step: int) -> (float, float, float):
-        external_balances_losses_mineff_types = [n.get_balance(step) for n in self.nodes]
-        print(external_balances_losses_mineff_types)
+    def get_balance(self, step: int) -> BalanceReturn:
+        balance_returns: list[BalanceReturn] = [n.get_balance(step) for n in self.nodes]
         min_eff_consumer_producer = [1, 1]
         setTypes = {}
         for i in range(len(self.nodes)):
-            types_for_node = external_balances_losses_mineff_types[i][3]
+            types_for_node = balance_returns[i].types
             setTypes |= types_for_node
+
             ## calculating balance
-            external_balance = external_balances_losses_mineff_types[i][0]
+            external_balance = balance_returns[i].balance
             transport_eff = self.transport_efficiencies[i]
-            min_eff = transport_eff * external_balances_losses_mineff_types[i][2]
+            min_eff = transport_eff * balance_returns[i].min_eff
 
             if external_balance < 0:
                 external_balance_after_transport = external_balance / transport_eff
@@ -43,16 +53,16 @@ class Grid(Node):
                     min_eff_consumer_producer[1] = min_eff
 
             self.local_balances[step] += external_balance_after_transport;
-            external_loss_after_transport = loss_on_link + external_balances_losses_mineff_types[i][1]
+            external_loss_after_transport = loss_on_link + balance_returns[i].loss
             self.local_losses[step] += external_loss_after_transport
-
-            self.unsetteld_nodes_eff_balance_loss_mineff_types.append((self.nodes[i], transport_eff,
-                                                                       external_balance_after_transport,
-                                                                       external_loss_after_transport, min_eff,
-                                                                       types_for_node))
+            protocol: Protocol = Protocol((self.nodes[i], transport_eff,
+                                           external_balance_after_transport,
+                                           external_loss_after_transport, min_eff,
+                                           types_for_node))
+            self.protocols.append(protocol)
 
         self.min_eff = min_eff_consumer_producer[self.local_balances[step] > 0]
-        return self.local_balances[step], self.local_losses[step], self.min_eff, setTypes
+        return BalanceReturn(self.local_balances[step], self.local_losses[step], self.min_eff, setTypes)
 
     def __init__(self, steps: int, nodes: list[Node], transport_efficiencies: list[float]):
         self.nodes = nodes
@@ -61,7 +71,7 @@ class Grid(Node):
         self.local_balances = [0] * steps
         self.local_losses = [0] * steps
         self.min_eff = 1
-        self.unsetteld_nodes_eff_balance_loss_mineff_types = []
+        self.protocols: list[Protocol] = []
 
     # ToDo: Agam
     # import graph struckture from node x graph
@@ -78,7 +88,7 @@ class Grid(Node):
         self.transport_efficiencies.append(transport_eff)
 
     def adding_nodes(self, nodes: list[Node], trasport_effs: list[float]):
-        if (len(nodes) != len(trasport_effs)):
+        if len(nodes) != len(trasport_effs):
             raise Exception("Arrays length are not matching")
         self.nodes += nodes
         self.transport_efficiencies += trasport_effs
@@ -91,81 +101,94 @@ class Grid(Node):
 
         return result
 
-    def settle(self, step, overflow):
+    def settle(self, step, overflow) -> SettleReturn:
         overflow = overflow
         print(overflow)
         ##underproduction
         if overflow < 0:
-            consumers_eff_demand_loss_mineff_types = [ndlc for ndlc in
-                                                      self.unsetteld_nodes_eff_balance_loss_mineff_types if
-                                                      ndlc[2] < 0]
-            consumers_eff_demand_loss_mineff_types.sort(
-                key=lambda x: x[3])
-            consumer, transport_eff, external_balance, external_loss, local_min_eff, types = consumers_eff_demand_loss_mineff_types.pop()
-            self.unsetteld_nodes_eff_balance_loss_mineff_types.remove(
-                (consumer, transport_eff, external_balance, external_loss, local_min_eff, types))
-            return_flow, updated_external_balance, updated_external_loss, updated_mineff, settled = consumer.settle(
+            protocols_consumers = [p for p in
+                                   self.protocols if
+                                   p.balance < 0]
+            protocols_consumers.sort(
+                key=lambda x: x.balance)
+            protocol = protocols_consumers.pop()
+            self.protocols.remove(protocol)
+            settle_return: SettleReturn = protocol.node.settle(
                 step,
-                overflow * transport_eff)
+                overflow * protocol.transport_eff)
 
-            updated_loss_on_transport = -updated_external_balance * (1 / transport_eff - 1)
-            if not settled:
-                cedlma = (consumer, transport_eff,
-                          updated_external_balance / transport_eff,
-                          updated_external_loss + updated_loss_on_transport,
-                          updated_mineff * transport_eff, types)
-                self.unsetteld_nodes_eff_balance_loss_mineff_types.append(cedlma)
-                consumers_eff_demand_loss_mineff_types.append(cedlma)
+            updated_loss_on_transport = -settle_return.updated_external_balance * (1 / protocol.transport_eff - 1)
             # updating local values
-            return_flow_after_transport = return_flow / transport_eff
+            return_flow_after_transport = settle_return.return_flow / protocol.transport_eff
             self.local_balances[step] -= overflow - return_flow_after_transport
-            self.local_losses[step] += -external_loss + updated_external_loss + updated_loss_on_transport
+            self.local_losses[
+                step] += -protocol.loss + settle_return.updated_external_loss + updated_loss_on_transport
 
-            if consumers_eff_demand_loss_mineff_types:
-                external_min_eff_after_transport = [neblm[1] for neblm in consumers_eff_demand_loss_mineff_types]
+            if not settle_return.settled:
+                protocol.balance = settle_return.updated_external_balance / protocol.transport_eff
+                protocol.loss = settle_return.updated_external_loss + updated_loss_on_transport
+                protocol.min_eff = settle_return.updated_mineff * protocol.transport_eff
+                self.protocols.append(protocol)
+                protocols_consumers.append(protocol)
+
+            if protocols_consumers:
+                external_min_eff_after_transport = [p.min_eff for p in protocols_consumers]
                 self.min_eff = min(external_min_eff_after_transport)
                 return_settled = False
             else:
                 self.min_eff = 1
                 return_settled = True
 
-            return return_flow_after_transport, self.local_balances[step], self.local_losses[
-                step], self.min_eff, return_settled
+            return SettleReturn(return_flow_after_transport, self.local_balances[step], self.local_losses[
+                step], self.min_eff, return_settled)
 
         # overproduction
+        # 1 Drop shit,
+        # 2 load batterys
+        # 3 decrease grean production
+
         else:
-            producers_eff_demand_loss_mineff = [ndlc for ndlc in self.unsetteld_nodes_eff_balance_loss_mineff_types if
-                                                ndlc[2] > 0]
-            producers_eff_demand_loss_mineff.sort(
-                key=lambda x: x[3])
-            producer, transport_eff, external_balance, external_loss, local_min_eff, types = producers_eff_demand_loss_mineff.pop()
+            # load batteries
+            protocols_producer_batteries = [p for p in
+                                            self.protocols if
+                                            1 in p.types_for_node]
 
-            self.unsetteld_nodes_eff_balance_loss_mineff_types.remove(
-                (producer, transport_eff, external_balance, external_loss, local_min_eff, types))
-
-            return_flow, updated_external_balance, updated_external_loss, updated_mineff, settled = producer.settle(
-                step,
-                overflow / transport_eff)
-
-            update_loss_on_transport = (1 - transport_eff) * updated_external_balance
-            if not settled:
-                updated_peblm = (producer, transport_eff,
-                                 updated_external_balance * transport_eff,
-                                 updated_external_loss + update_loss_on_transport,
-                                 updated_mineff * transport_eff)
-                self.unsetteld_nodes_eff_balance_loss_mineff_types.append(updated_peblm)
-                producers_eff_demand_loss_mineff.append(updated_peblm)
-
-            return_flow_after_transport = return_flow * transport_eff
-            self.local_balances[step] -= overflow - return_flow_after_transport
-            self.local_losses[step] += - external_loss + updated_external_loss + update_loss_on_transport
-            if producers_eff_demand_loss_mineff:
-                external_min_eff_after_transport = [neblm[1] for neblm in producers_eff_demand_loss_mineff]
-                self.min_eff = min(external_min_eff_after_transport)
-                return_settled = False
+            if protocols_producer_batteries:
+                # TODO batterie logic
+                pass
             else:
-                self.min_eff = 1
-                return_settled = True
+                protocols_producers: Protocol = [p for p in self.protocols
+                                                 if
+                                                 p.balance > 0]
+                protocols_producers.sort(
+                    key=lambda p: p.min_eff)
+                protocol = protocols_producers.pop()
 
-            return return_flow_after_transport, self.local_balances[step], self.local_losses[
-                step], self.min_eff, return_settled
+                self.protocols.remove(protocol)
+                settled_return: SettleReturn = protocol.node.settle(
+                    step,
+                    overflow / protocol.transport_eff)
+
+                update_loss_on_transport = (1 - protocol.transport_eff) * settled_return.updated_external_balance
+                return_flow_after_transport = settled_return.return_flow * protocol.transport_eff
+                self.local_balances[step] -= overflow - return_flow_after_transport
+                self.local_losses[
+                    step] += - protocol.loss + settled_return.updated_external_loss + update_loss_on_transport
+
+                if not settled_return.settled:
+                    protocol.balance = settled_return.updated_external_balance * protocol.transport_eff
+                    protocol.min_eff = settled_return.updated_mineff * protocol.transport_eff
+                    protocol.loss = settled_return.updated_external_loss + update_loss_on_transport,
+                    self.protocols.append(protocol)
+                    protocols_producers.append(protocol)
+
+                if protocols_producers:
+                    external_min_eff_after_transport = [p.min_eff for p in protocols_producers]
+                    self.min_eff = min(external_min_eff_after_transport)
+                    return_settled = False
+                else:
+                    self.min_eff = 1
+                    return_settled = True
+
+                return SettleReturn(return_flow_after_transport, self.local_balances[step], self.local_losses[
+                    step], self.min_eff, return_settled)

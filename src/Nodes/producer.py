@@ -1,7 +1,4 @@
-import random
-import uuid
-
-from src.Nodes.node import Node
+from src.Nodes.node import Node, SettleReturn, BalanceReturn
 
 
 class Producer(Node):
@@ -13,7 +10,7 @@ class Producer(Node):
         self.sold_per_step = [0] * len(supply_per_step)
 
     def get_balance(self, step: int) -> (float, float):
-        return self.supply_per_step[step], 0, 1, {}
+        return BalanceReturn((self.supply_per_step[step], 0, 1, {})
 
     def settle(self, step, overflow):
         if overflow >= 0:
@@ -23,6 +20,6 @@ class Producer(Node):
             else:
                 return_flow = 0
                 self.sold_per_step[step] = self.supply_per_step[step] - overflow
-            return return_flow, self.sold_per_step[step], 0, 1, True
+            return SettleReturn(return_flow, self.sold_per_step[step], 0, 1, True)
         else:
             print("settle was given a negativ overflow in in a producer")

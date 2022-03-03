@@ -32,3 +32,7 @@ class TestGrid(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def runTest():
+    unittest.main()

@@ -19,9 +19,9 @@ class Protocol:
 class Grid(Node):
     def clear_up(self, step: int):
         while self.protocols:
-            (self.protocols.pop())[0].clear_up(step)
+            (self.protocols.pop()).node.clear_up(step)
 
-    def start(self, step):
+    def start(self, step) -> SettleReturn:
         balance_return = self.get_balance(step)
         result = self.start_settling(step, balance_return.balance)
         self.clear_up(step)
@@ -55,10 +55,10 @@ class Grid(Node):
             self.local_balances[step] += external_balance_after_transport;
             external_loss_after_transport = loss_on_link + balance_returns[i].loss
             self.local_losses[step] += external_loss_after_transport
-            protocol: Protocol = Protocol((self.nodes[i], transport_eff,
-                                           external_balance_after_transport,
-                                           external_loss_after_transport, min_eff,
-                                           types_for_node))
+            protocol: Protocol = Protocol(self.nodes[i], transport_eff,
+                                          external_balance_after_transport,
+                                          external_loss_after_transport, min_eff,
+                                          types_for_node)
             self.protocols.append(protocol)
 
         self.min_eff = min_eff_consumer_producer[self.local_balances[step] > 0]
@@ -97,7 +97,7 @@ class Grid(Node):
         updated_overflow = overflow
         while updated_overflow != 0:
             result = self.settle(step, updated_overflow)
-            updated_overflow = result[0]
+            updated_overflow = result.return_flow
 
         return result
 

@@ -34,5 +34,5 @@ if __name__ == '__main__':
     unittest.main()
 
 
-def runTest():
+def run_test():
     unittest.main()

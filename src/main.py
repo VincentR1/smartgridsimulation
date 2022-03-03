@@ -1,4 +1,4 @@
-from src.Nodes.test.test_grid import runTest
+from src.Nodes.test.test_grid import run_test
 
 if __name__ == "__main__":
-    runTest()
+    run_test()

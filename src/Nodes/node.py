@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from collections import Counter
 
 
 @dataclass
@@ -7,7 +8,7 @@ class BalanceReturn:
     balance: float
     loss: float
     min_eff: float
-    types: set
+    types: Counter
 
 
 @dataclass

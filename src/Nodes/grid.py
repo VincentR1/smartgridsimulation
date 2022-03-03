@@ -1,9 +1,7 @@
-from abc import ABC
+from collections import Counter
 from dataclasses import dataclass
-import numpy as np
-from src.Nodes.consumer import Consumer
-from src.Nodes.producer import Producer
 from src.Nodes.node import Node, BalanceReturn, SettleReturn
+from src.Nodes.types import NodeTypes
 
 
 @dataclass
@@ -13,7 +11,7 @@ class Protocol:
     balance: float
     loss: float
     min_eff: float
-    types_for_node: set
+    types_for_node: Counter
 
 
 class Grid(Node):
@@ -31,10 +29,10 @@ class Grid(Node):
     def get_balance(self, step: int) -> BalanceReturn:
         balance_returns: list[BalanceReturn] = [n.get_balance(step) for n in self.nodes]
         min_eff_consumer_producer = [1, 1]
-        setTypes = {}
+        setTypes = Counter([NodeTypes.GRID])
         for i in range(len(self.nodes)):
             types_for_node = balance_returns[i].types
-            setTypes |= types_for_node
+            setTypes.update(types_for_node)
 
             ## calculating balance
             external_balance = balance_returns[i].balance
@@ -103,7 +101,6 @@ class Grid(Node):
 
     def settle(self, step, overflow) -> SettleReturn:
         overflow = overflow
-        print(overflow)
         ##underproduction
         if overflow < 0:
             protocols_consumers = [p for p in
@@ -151,7 +148,7 @@ class Grid(Node):
             # load batteries
             protocols_producer_batteries = [p for p in
                                             self.protocols if
-                                            1 in p.types_for_node]
+                                            NodeTypes.BATTERY in p.types_for_node]
 
             if protocols_producer_batteries:
                 # TODO batterie logic

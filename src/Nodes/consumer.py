@@ -1,19 +1,20 @@
-import random
-import numpy as np
+from collections import Counter
 
 from src.Nodes.node import Node, SettleReturn, BalanceReturn
+from src.Nodes.types import NodeTypes
 
 
 class Consumer(Node):
-    def __init__(self, demand_per_step):
+    def __init__(self, demand_per_step, node_type=NodeTypes.CONSUMER):
         self.demand_per_step = demand_per_step
         self.bought_per_step = [0] * len(demand_per_step)
+        self.type = node_type
 
     def clear_up(self, step: int):
         self.bought_per_step[step] = self.demand_per_step[step]
 
     def get_balance(self, step: int) -> (float, float, float):
-        return BalanceReturn(-self.demand_per_step[step], 0, 1, {})
+        return BalanceReturn(-self.demand_per_step[step], 0, 1, Counter([self.type]))
 
     def settle(self, step, overflow):
         if overflow <= 0:

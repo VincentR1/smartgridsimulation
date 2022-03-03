@@ -1,4 +1,7 @@
-from src.Nodes.node import Node
+from collections import Counter
+
+from src.Nodes.node import Node, BalanceReturn
+from src.Nodes.types import NodeTypes
 
 
 class Storage(Node):
@@ -9,11 +12,10 @@ class Storage(Node):
     def get_balance(self, step: int) -> (float, float, float):
         load_in_step = self.load_per_step[step]
         self.load_per_step[step] = 0
-        return load_in_step, 0, 1, {1}
+        return BalanceReturn(load_in_step, 0, 1, Counter([NodeTypes.BATTERY]))
 
     def settle(self, step: int, overflow: float) -> (float, float, float):
         pass
 
-    @abstractmethod
     def clear_up(self, step: int):
         pass

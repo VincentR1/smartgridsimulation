@@ -1,6 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
-from src.Nodes.node import Node, BalanceReturn, SettleReturn
+from src.Nodes.node import Node, BalanceReturn, SettleReturn, StorageInfo
 from src.Nodes.types import NodeTypes
 
 
@@ -11,7 +11,8 @@ class Protocol:
     balance: float
     loss: float
     min_eff: float
-    types_for_node: Counter
+    types: Counter
+    storage: StorageInfo
 
 
 class Grid(Node):
@@ -27,40 +28,112 @@ class Grid(Node):
 
     # gives back (balance,loss)
     def get_balance(self, step: int) -> BalanceReturn:
-        balance_returns: list[BalanceReturn] = [n.get_balance(step) for n in self.nodes]
-        min_eff_consumer_producer = [1, 1]
-        setTypes = Counter([NodeTypes.GRID])
-        for i in range(len(self.nodes)):
-            types_for_node = balance_returns[i].types
-            setTypes.update(types_for_node)
+        if self.balance_calculated:
+            return self.balance_calculated[0]
+        else:
+            self.local_balances[step] = 0
+            self.local_losses[step] = 0
+            self.protocols = []
+            balance_returns = [n.get_balance(step) for n in self.nodes]
+            min_eff_consumer = 1
+            min_eff_producer = 1
+            setTypes = Counter()
+            storage = StorageInfo(load=0, capacity=0, min_dist_consumer=0, min_dist_producer=0)
+            min_dist_storage_consumer_fixed = 0
+            min_dist_storage_consumer_opt = 0
+            min_dist_storage_producer_fixed = 0
+            min_dist_storage_producer_opt = 0
+            for i in range(len(self.nodes)):
+                balance_returns_for_node = balance_returns[i]
+                types_for_node = balance_returns_for_node.types
+                setTypes.update(types_for_node)
+                ## calculating balance
+                external_balance = balance_returns[i].balance
+                transport_eff = self.transport_efficiencies[i]
+                min_eff = transport_eff * balance_returns[i].min_eff
 
-            ## calculating balance
-            external_balance = balance_returns[i].balance
-            transport_eff = self.transport_efficiencies[i]
-            min_eff = transport_eff * balance_returns[i].min_eff
+                if external_balance < 0:
+                    external_balance_after_transport = external_balance / transport_eff
+                    loss_on_link = -external_balance_after_transport + external_balance
+                    if min_eff < min_eff_consumer:
+                        min_eff_consumer = min_eff
+                else:
+                    external_balance_after_transport = external_balance * transport_eff
+                    loss_on_link = external_balance - external_balance_after_transport
+                    if min_eff < min_eff_producer:
+                        min_eff_producer = min_eff
 
-            if external_balance < 0:
-                external_balance_after_transport = external_balance / transport_eff
-                loss_on_link = -external_balance_after_transport + external_balance
-                if min_eff < min_eff_consumer_producer[0]:
-                    min_eff_consumer_producer[0] = min_eff
+                self.local_balances[step] += external_balance_after_transport
+                external_loss_after_transport = loss_on_link + balance_returns[i].loss
+                self.local_losses[step] += external_loss_after_transport
+                storage_for_node = balance_returns[i].storage
+
+                if storage_for_node.min_dist_producer > 0:
+                    min_dist_storage_producer_for_node = storage_for_node.min_dist_producer
+                    if min_dist_storage_producer_for_node > min_dist_storage_producer_fixed:
+                        min_dist_storage_producer_fixed = min_dist_storage_producer_for_node
+                else:
+                    min_dist_storage_producer_for_node = storage_for_node.min_dist_producer * transport_eff
+                    if min_dist_storage_producer_for_node < min_dist_storage_producer_opt:
+                        min_dist_storage_producer_opt = min_dist_storage_producer_for_node
+
+                if storage_for_node.min_dist_consumer > 0:
+                    min_dist_storage_consumer_for_node = storage_for_node.min_dist_producer
+                    if min_dist_storage_consumer_for_node > min_dist_storage_consumer_fixed:
+                        min_dist_storage_consumer_fixed = min_dist_storage_consumer_for_node
+                else:
+                    min_dist_storage_consumer_for_node = storage_for_node.min_dist_producer * transport_eff
+                    if min_dist_storage_consumer_for_node < min_dist_storage_consumer_opt:
+                        min_dist_storage_consumer_opt = min_dist_storage_consumer_for_node
+
+                node_capacity_after_transport = storage_for_node.capacity / transport_eff
+                storage.capacity += node_capacity_after_transport
+
+                node_load_after_transport = storage_for_node.load * transport_eff
+                storage.load += node_load_after_transport
+                storage_after_transport = StorageInfo(load=node_load_after_transport,
+                                                      capacity=node_capacity_after_transport,
+                                                      min_dist_consumer=min_dist_storage_consumer_for_node,
+                                                      min_dist_producer=min_dist_storage_producer_for_node)
+
+                protocol: Protocol = Protocol(node=self.nodes[i],
+                                              transport_eff=transport_eff,
+                                              balance=external_balance_after_transport,
+                                              loss=external_loss_after_transport,
+                                              min_eff=min_eff,
+                                              types=types_for_node,
+                                              storage=storage_after_transport)
+
+                self.protocols.append(protocol)
+
+            if self.local_balances[step] > 0:
+                self.min_eff = min_eff_producer
+                min_dist_storage_producer_opt *= -1
+                storage.min_dist_producer = min_dist_storage_producer_opt \
+                    if min_dist_storage_producer_opt > min_dist_storage_producer_fixed \
+                    else min_dist_storage_producer_fixed
+                storage.min_dist_consumer = min_dist_storage_consumer_fixed \
+                    if min_dist_storage_consumer_fixed > 0 else min_dist_storage_consumer_opt
+
+            elif self.local_balances[step] < 0:
+                self.min_eff = min_eff_consumer
+                min_dist_storage_consumer_opt *= -1
+                storage.min_dist_consumer = min_dist_storage_consumer_opt \
+                    if min_dist_storage_consumer_opt > min_dist_storage_consumer_fixed \
+                    else min_dist_storage_consumer_fixed
+                storage.min_dist_producer = min_dist_storage_producer_fixed \
+                    if min_dist_storage_producer_fixed > 0 else min_dist_storage_producer_opt
             else:
-                external_balance_after_transport = external_balance * transport_eff
-                loss_on_link = external_balance - external_balance_after_transport
-                if min_eff < min_eff_consumer_producer[0]:
-                    min_eff_consumer_producer[1] = min_eff
+                self.min_eff = min_eff_consumer
+                storage.min_dist_consumer = min_dist_storage_consumer_fixed \
+                    if min_dist_storage_consumer_fixed > 0 else min_dist_storage_consumer_opt
+                storage.min_dist_producer = min_dist_storage_producer_fixed \
+                    if min_dist_storage_producer_fixed > 0 else min_dist_storage_producer_opt
+            self.balance_calculated.append(
+                BalanceReturn(balance=self.local_balances[step], loss=self.local_losses[step], min_eff=self.min_eff,
+                              storage=storage, types=setTypes))
 
-            self.local_balances[step] += external_balance_after_transport;
-            external_loss_after_transport = loss_on_link + balance_returns[i].loss
-            self.local_losses[step] += external_loss_after_transport
-            protocol: Protocol = Protocol(self.nodes[i], transport_eff,
-                                          external_balance_after_transport,
-                                          external_loss_after_transport, min_eff,
-                                          types_for_node)
-            self.protocols.append(protocol)
-
-        self.min_eff = min_eff_consumer_producer[self.local_balances[step] > 0]
-        return BalanceReturn(self.local_balances[step], self.local_losses[step], self.min_eff, setTypes)
+            return self.balance_calculated[0]
 
     def __init__(self, steps: int, nodes: list[Node], transport_efficiencies: list[float]):
         self.nodes = nodes
@@ -70,15 +143,7 @@ class Grid(Node):
         self.local_losses = [0] * steps
         self.min_eff = 1
         self.protocols: list[Protocol] = []
-
-    # ToDo: Agam
-    # import graph struckture from node x graph
-    def import_graph_from_networkx(self, graph):
-        pass
-
-    # import graph from text json example in the wiki
-    def import_graph_from_file(self, ):
-        pass
+        self.balance_calculated: list[BalanceReturn] = []
 
     # Adding one node to a Grid
     def adding_node(self, node: Node, transport_eff: float):
@@ -94,98 +159,71 @@ class Grid(Node):
     def start_settling(self, step, overflow):
         updated_overflow = overflow
         while updated_overflow != 0:
-            result = self.settle(step, updated_overflow)
-            updated_overflow = result.return_flow
+            self.settle(step, updated_overflow),
+            balance_return = self.get_balance(step)
+            updated_overflow = balance_return.balance
 
-        return result
+        return balance_return
 
-    def settle(self, step, overflow) -> SettleReturn:
-        overflow = overflow
-        ##underproduction
-        if overflow < 0:
-            protocols_consumers = [p for p in
-                                   self.protocols if
-                                   p.balance < 0]
-            protocols_consumers.sort(
-                key=lambda x: x.balance)
-            protocol = protocols_consumers.pop()
-            self.protocols.remove(protocol)
-            settle_return: SettleReturn = protocol.node.settle(
-                step,
-                overflow * protocol.transport_eff)
 
-            updated_loss_on_transport = -settle_return.updated_external_balance * (1 / protocol.transport_eff - 1)
-            # updating local values
-            return_flow_after_transport = settle_return.return_flow / protocol.transport_eff
-            self.local_balances[step] -= overflow - return_flow_after_transport
-            self.local_losses[
-                step] += -protocol.loss + settle_return.updated_external_loss + updated_loss_on_transport
+def settle(self, step, overflow):
+    overflow = overflow
+    overflow_after_transport: float
+    protocol: Protocol
+    local_balance_return = self.balance_calculated.pop()
+    if overflow < 0:
 
-            if not settle_return.settled:
-                protocol.balance = settle_return.updated_external_balance / protocol.transport_eff
-                protocol.loss = settle_return.updated_external_loss + updated_loss_on_transport
-                protocol.min_eff = settle_return.updated_mineff * protocol.transport_eff
-                self.protocols.append(protocol)
-                protocols_consumers.append(protocol)
+        # discharge batteries
+        protocol_with_load = [p for p in self.protocols if p.storage.load > 0]
+        # chose the one closest to counsumer
+        if protocol_with_load:
+            protocol_with_load.sort(key=lambda x: x.storage.min_dist_consumer)
+            protocol = protocol_with_load[-1]
+            if protocol.storage.min_dist_consumer < 0:
+                protocol = protocol_with_load[0]
+            max_overflow = local_balance_return.balance if local_balance_return.balance < 0 else overflow
 
-            if protocols_consumers:
-                external_min_eff_after_transport = [p.min_eff for p in protocols_consumers]
-                self.min_eff = min(external_min_eff_after_transport)
-                return_settled = False
+            if protocol.balance < 0:
+                overflow_after_transport = max_overflow * protocol.transport_eff
             else:
-                self.min_eff = 1
-                return_settled = True
+                overflow_after_transport = max_overflow / protocol.transport_eff
 
-            return SettleReturn(return_flow_after_transport, self.local_balances[step], self.local_losses[
-                step], self.min_eff, return_settled)
 
-        # overproduction
-        # 1 Drop shit,
-        # 2 load batterys
-        # 3 decrease grean production
-
+        # chose consumer
         else:
-            # load batteries
-            protocols_producer_batteries = [p for p in
-                                            self.protocols if
-                                            NodeTypes.BATTERY in p.types_for_node]
+            protocol_consumers = [p for p in self.protocols if p.balance < 0]
+            print(protocol_consumers)
+            protocol_consumers.sort(key=lambda x: x.min_eff)
+            protocol = protocol_consumers[0]
+            overflow_after_transport = overflow * protocol.transport_eff
 
-            if protocols_producer_batteries:
-                # TODO batterie logic
-                pass
+    else:
+        # coal
+        protocol_with_coal = [p for p in self.protocols if NodeTypes.COAL in p.types]
+        if protocol_with_coal:
+            protocol_with_coal.sort(key=lambda x: x.min_eff)
+            protocol = protocol_with_coal[0]
+            max_overflow = overflow
+
+        # load batteries
+        else:
+            protocol_with_capacity = [p for p in self.protocols if p.storage.capacity > 0]
+            if protocol_with_capacity:
+                protocol_with_capacity.sort(key=lambda x: x.storage.min_dist_producer)
+                protocol = protocol_with_capacity[-1]
+                if protocol.storage.min_dist_producer < 0:
+                    protocol = protocol_with_capacity[0]
+                max_overflow = local_balance_return.balance if local_balance_return.balance > 0 else overflow
+
             else:
-                protocols_producers: Protocol = [p for p in self.protocols
-                                                 if
-                                                 p.balance > 0]
-                protocols_producers.sort(
-                    key=lambda p: p.min_eff)
-                protocol = protocols_producers.pop()
+                protocol_producers = [p for p in self.protocols if p.balance > 0]
+                protocol_producers.sort(key=lambda x: x.min_eff)
+                protocol = protocol_producers[0]
+                max_overflow = overflow
 
-                self.protocols.remove(protocol)
-                settled_return: SettleReturn = protocol.node.settle(
-                    step,
-                    overflow / protocol.transport_eff)
+        if protocol.balance > 0:
+            overflow_after_transport = max_overflow / protocol.transport_eff
+        else:
+            overflow_after_transport = max_overflow * protocol.transport_eff
 
-                update_loss_on_transport = (1 - protocol.transport_eff) * settled_return.updated_external_balance
-                return_flow_after_transport = settled_return.return_flow * protocol.transport_eff
-                self.local_balances[step] -= overflow - return_flow_after_transport
-                self.local_losses[
-                    step] += - protocol.loss + settled_return.updated_external_loss + update_loss_on_transport
-
-                if not settled_return.settled:
-                    protocol.balance = settled_return.updated_external_balance * protocol.transport_eff
-                    protocol.min_eff = settled_return.updated_mineff * protocol.transport_eff
-                    protocol.loss = settled_return.updated_external_loss + update_loss_on_transport,
-                    self.protocols.append(protocol)
-                    protocols_producers.append(protocol)
-
-                if protocols_producers:
-                    external_min_eff_after_transport = [p.min_eff for p in protocols_producers]
-                    self.min_eff = min(external_min_eff_after_transport)
-                    return_settled = False
-                else:
-                    self.min_eff = 1
-                    return_settled = True
-
-                return SettleReturn(return_flow_after_transport, self.local_balances[step], self.local_losses[
-                    step], self.min_eff, return_settled)
+    protocol.node.settle(step, overflow_after_transport)

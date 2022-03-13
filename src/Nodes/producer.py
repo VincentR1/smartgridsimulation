@@ -1,6 +1,6 @@
 from collections import Counter
 
-from src.Nodes.node import Node, SettleReturn, BalanceReturn
+from src.Nodes.node import Node, SettleReturn, BalanceReturn, StorageInfo
 from src.Nodes.types import NodeTypes
 
 
@@ -14,7 +14,7 @@ class Producer(Node):
         self.type = node_type
 
     def get_balance(self, step: int) -> BalanceReturn:
-        return BalanceReturn(self.supply_per_step[step], 0, 1, Counter([self.type]))
+        return BalanceReturn(self.supply_per_step[step], 0, 1, Counter([self.type]), StorageInfo(0, 0, 0, 0))
 
     def settle(self, step, overflow):
         if overflow >= 0:
@@ -24,6 +24,7 @@ class Producer(Node):
             else:
                 return_flow = 0
                 self.sold_per_step[step] = self.supply_per_step[step] - overflow
-            return SettleReturn(return_flow, self.sold_per_step[step], 0, 1, True)
+            return SettleReturn(return_flow, self.sold_per_step[step], 0, 1, Counter([self.type]),
+                                StorageInfo(0, 0, 0, 0), True)
         else:
             print("settle was given a negativ overflow in in a producer")

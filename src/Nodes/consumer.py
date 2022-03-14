@@ -12,7 +12,9 @@ class Consumer(Node):
         self.activated = False
 
     def clear_up(self, step: int):
-        self.bought_per_step[step] = self.demand_per_step[step]
+        if not self.activated:
+            self.bought_per_step[step] = self.demand_per_step[step]
+        self.activated = False
 
     def get_balance(self, step: int) -> BalanceReturn:
         if self.activated:

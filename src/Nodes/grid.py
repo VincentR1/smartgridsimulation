@@ -17,6 +17,7 @@ class Protocol:
 
 class Grid(Node):
     def clear_up(self, step: int):
+        self.balance_calculated.pop()
         while self.protocols:
             (self.protocols.pop()).node.clear_up(step)
 
@@ -165,65 +166,63 @@ class Grid(Node):
 
         return balance_return
 
+    def settle(self, step, overflow):
+        overflow = overflow
+        overflow_after_transport: float
+        protocol: Protocol
+        local_balance_return = self.balance_calculated.pop()
+        if overflow < 0:
 
-def settle(self, step, overflow):
-    overflow = overflow
-    overflow_after_transport: float
-    protocol: Protocol
-    local_balance_return = self.balance_calculated.pop()
-    if overflow < 0:
+            # discharge batteries
+            protocol_with_load = [p for p in self.protocols if p.storage.load > 0]
+            # chose the one closest to counsumer
+            if protocol_with_load:
+                protocol_with_load.sort(key=lambda x: x.storage.min_dist_consumer)
+                protocol = protocol_with_load[-1]
+                if protocol.storage.min_dist_consumer < 0:
+                    protocol = protocol_with_load[0]
+                max_overflow = local_balance_return.balance if local_balance_return.balance < 0 else overflow
 
-        # discharge batteries
-        protocol_with_load = [p for p in self.protocols if p.storage.load > 0]
-        # chose the one closest to counsumer
-        if protocol_with_load:
-            protocol_with_load.sort(key=lambda x: x.storage.min_dist_consumer)
-            protocol = protocol_with_load[-1]
-            if protocol.storage.min_dist_consumer < 0:
-                protocol = protocol_with_load[0]
-            max_overflow = local_balance_return.balance if local_balance_return.balance < 0 else overflow
+                if protocol.balance < 0:
+                    overflow_after_transport = max_overflow * protocol.transport_eff
+                else:
+                    overflow_after_transport = max_overflow / protocol.transport_eff
 
-            if protocol.balance < 0:
-                overflow_after_transport = max_overflow * protocol.transport_eff
+
+            # chose consumer
             else:
-                overflow_after_transport = max_overflow / protocol.transport_eff
+                protocol_consumers = [p for p in self.protocols if p.balance < 0]
+                protocol_consumers.sort(key=lambda x: x.min_eff)
+                protocol = protocol_consumers[0]
+                overflow_after_transport = overflow * protocol.transport_eff
 
-
-        # chose consumer
         else:
-            protocol_consumers = [p for p in self.protocols if p.balance < 0]
-            print(protocol_consumers)
-            protocol_consumers.sort(key=lambda x: x.min_eff)
-            protocol = protocol_consumers[0]
-            overflow_after_transport = overflow * protocol.transport_eff
-
-    else:
-        # coal
-        protocol_with_coal = [p for p in self.protocols if NodeTypes.COAL in p.types]
-        if protocol_with_coal:
-            protocol_with_coal.sort(key=lambda x: x.min_eff)
-            protocol = protocol_with_coal[0]
-            max_overflow = overflow
-
-        # load batteries
-        else:
-            protocol_with_capacity = [p for p in self.protocols if p.storage.capacity > 0]
-            if protocol_with_capacity:
-                protocol_with_capacity.sort(key=lambda x: x.storage.min_dist_producer)
-                protocol = protocol_with_capacity[-1]
-                if protocol.storage.min_dist_producer < 0:
-                    protocol = protocol_with_capacity[0]
-                max_overflow = local_balance_return.balance if local_balance_return.balance > 0 else overflow
-
-            else:
-                protocol_producers = [p for p in self.protocols if p.balance > 0]
-                protocol_producers.sort(key=lambda x: x.min_eff)
-                protocol = protocol_producers[0]
+            # coal
+            protocol_with_coal = [p for p in self.protocols if NodeTypes.COAL in p.types]
+            if protocol_with_coal:
+                protocol_with_coal.sort(key=lambda x: x.min_eff)
+                protocol = protocol_with_coal[0]
                 max_overflow = overflow
 
-        if protocol.balance > 0:
-            overflow_after_transport = max_overflow / protocol.transport_eff
-        else:
-            overflow_after_transport = max_overflow * protocol.transport_eff
+            # load batteries
+            else:
+                protocol_with_capacity = [p for p in self.protocols if p.storage.capacity > 0]
+                if protocol_with_capacity:
+                    protocol_with_capacity.sort(key=lambda x: x.storage.min_dist_producer)
+                    protocol = protocol_with_capacity[-1]
+                    if protocol.storage.min_dist_producer < 0:
+                        protocol = protocol_with_capacity[0]
+                    max_overflow = local_balance_return.balance if local_balance_return.balance > 0 else overflow
 
-    protocol.node.settle(step, overflow_after_transport)
+                else:
+                    protocol_producers = [p for p in self.protocols if p.balance > 0]
+                    protocol_producers.sort(key=lambda x: x.min_eff)
+                    protocol = protocol_producers[0]
+                    max_overflow = overflow
+
+            if protocol.balance > 0:
+                overflow_after_transport = max_overflow / protocol.transport_eff
+            else:
+                overflow_after_transport = max_overflow * protocol.transport_eff
+
+        protocol.node.settle(step, overflow_after_transport)

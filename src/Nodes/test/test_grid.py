@@ -3,6 +3,7 @@ from collections import Counter
 
 from src.Nodes.generators.grids.simple_grids import SimpleGrid, SimpleGridWurm
 from src.Nodes.node import SettleReturn, BalanceReturn, StorageInfo
+from src.Nodes.producer import Producer
 from src.Nodes.storage import Storage
 from src.Nodes.types import NodeTypes
 
@@ -13,36 +14,57 @@ class TestGrid(unittest.TestCase):
     def test_negative_overflow(self):
         grid = SimpleGrid(steps=1, number_consumer=2, number_producer=1, transportation_eff=transport_eff)
         output: SettleReturn = grid.start(0)
-        expected_output = BalanceReturn(balance=0, loss=(1 - transport_eff ** 2) * 100, min_eff=transport_eff,
+        expected_output = BalanceReturn(balance=0, loss=(1 - transport_eff ** 2) * 10000, min_eff=transport_eff,
                                         storage=StorageInfo(0, 0, 0, 0),
                                         types=Counter([NodeTypes.CONSUMER, NodeTypes.CONSUMER, NodeTypes.PRODUCER]))
         self.assertAlmostEqual(output.loss, expected_output.loss)
         self.assertEqual(output.balance, expected_output.balance)
-        self.assertEqual(output.updated_types, expected_output.updated_types)
+        self.assertEqual(output.types, expected_output.types)
 
     def test_positive_overflow(self):
         grid = SimpleGrid(steps=1, number_consumer=1, number_producer=2, transportation_eff=transport_eff)
-        output: SettleReturn = grid.start(0)
-        expected_output = SettleReturn(0, 0, (1 / transport_eff ** 2 - 1) * 100, 1, Counter([NodeTypes.CONSUMER]), True)
-        self.assertAlmostEqual(output.updated_loss, expected_output.updated_loss)
-        self.assertEqual(output.updated_balance, expected_output.updated_balance)
+        output: BalanceReturn = grid.start(0)
+        expected_output = BalanceReturn(balance=0, loss=(1 / transport_eff ** 2 - 1) * 10000, min_eff=transport_eff,
+                                        types=Counter([NodeTypes.CONSUMER]), storage=(StorageInfo(0, 0, 0, 0)))
+        self.assertAlmostEqual(output.loss, expected_output.loss)
+        self.assertEqual(output.balance, expected_output.balance)
 
     def test_interconecting_grid(self):
         grid = SimpleGridWurm(steps=1, number_producer=1, number_consumer=1, number_interconecting_grids=13,
                               transport_eff=transport_eff)
-        output: SettleReturn = grid.start(0)
-        expected_output = SettleReturn(0, 0, (1 - transport_eff ** 13) * 100, 1,
-                                       Counter([NodeTypes.CONSUMER, NodeTypes.PRODUCER]), True)
+        output: BalanceReturn = grid.start(0)
+        expected_output = BalanceReturn(balance=0, loss=(1 - transport_eff ** 13) * 10000, min_eff=1,
+                                        types=Counter([NodeTypes.CONSUMER, NodeTypes.PRODUCER]),
+                                        storage=StorageInfo(0, 0, 0, 0))
 
-        self.assertAlmostEqual(output.updated_loss, expected_output.updated_loss)
-        self.assertEqual(output.updated_balance, expected_output.updated_balance)
+        self.assertAlmostEqual(output.loss, expected_output.loss)
+        self.assertEqual(output.balance, expected_output.balance)
 
     def test_storage_grid(self):
         grid = SimpleGrid(steps=1, number_producer=1, number_consumer=0, transportation_eff=transport_eff)
-        storage = Storage(1, 1)
+        storage = Storage(1, 10000, 0)
         grid.adding_node(storage, transport_eff)
-        grid.get_balance(0)
-        balance = grid.get_balance(0)
+        output: BalanceReturn = grid.start(0)
+        self.assertEqual(output.balance, 0)
+        self.assertAlmostEqual(output.loss, 10000 * (1 - transport_eff ** 2))
+        self.assertEqual(storage.load[0], 6400)
+
+    def test_storage_grid(self):
+        grid = SimpleGrid(steps=1, number_producer=1, number_consumer=0, transportation_eff=transport_eff)
+        storage = Storage(1, 10000, 9800)
+        grid.adding_node(storage, transport_eff)
+        output: BalanceReturn = grid.start(0)
+        self.assertEqual(output.balance, 0)
+        self.assertAlmostEqual(output.loss, 200 / transport_eff / transport_eff * (1 - transport_eff ** 2))
+        self.assertEqual(storage.load[0], 10000)
+
+    def test_coal(self):
+        grid = SimpleGrid(steps=1, number_producer=4, number_consumer=1, transportation_eff=transport_eff)
+        coalProducer = Producer([10000], NodeTypes.COAL)
+        # grid.adding_node(coalProducer, transport_eff=transport_eff)
+        output = grid.start(0)
+        print(output)
+        print(coalProducer.sold_per_step)
 
 
 if __name__ == '__main__':

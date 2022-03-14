@@ -5,14 +5,16 @@ from src.Nodes.consumer import Consumer
 
 
 class SimpleConsumer(Consumer):
-    def __init__(self, steps, value=100):
+    def __init__(self, steps, value=10000):
         demand_per_step = [value] * steps
         super().__init__(demand_per_step)
 
+
 class RandomSingleHouse(Consumer):
     def __init__(self, steps, number_Persons):
-        averarage_demand_in_watt_per_person_per_steps=AVRG_CONSUMTION
-        demand_per_step=[(random.random()+1)*averarage_demand_in_watt_per_person_per_steps*WINDOW[i]for i in range(steps)]
+        averarage_demand_in_watt_per_person_per_steps = AVRG_CONSUMTION
+        demand_per_step = [(random.random() + 1) * averarage_demand_in_watt_per_person_per_steps * WINDOW[i] for i in
+                           range(steps)]
         super(demand_per_step)
 
 

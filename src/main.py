@@ -1,6 +1,4 @@
-from src.Nodes.generators.consumer.simple_consumers import DayOnNightOff
-from src.Nodes.generators.grids.simple_grids import SimpleGrid, SimpleGridWurm
-from test import test
+from src.Nodes.test.test_grid import run_test
 
 if __name__ == "__main__":
-    test()
+    run_test()

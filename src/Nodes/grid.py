@@ -27,6 +27,10 @@ class Grid(Node):
         self.clear_up(step)
         return result
 
+    def run_simulation(self):
+        for i in range(len(self.local_balances)):
+            self.start(i)
+
     # gives back (balance,loss)
     def get_balance(self, step: int) -> BalanceReturn:
         if self.balance_calculated:
@@ -159,12 +163,10 @@ class Grid(Node):
 
     def start_settling(self, step, overflow):
         updated_overflow = overflow
-        while updated_overflow != 0:
+        while updated_overflow < - 0.05 or updated_overflow > 0.05:
             self.settle(step, updated_overflow),
             balance_return = self.get_balance(step)
             updated_overflow = balance_return.balance
-
-        return balance_return
 
     def settle(self, step, overflow):
         overflow = overflow
@@ -172,7 +174,6 @@ class Grid(Node):
         protocol: Protocol
         local_balance_return = self.balance_calculated.pop()
         if overflow < 0:
-
             # discharge batteries
             protocol_with_load = [p for p in self.protocols if p.storage.load > 0]
             # chose the one closest to counsumer
@@ -187,14 +188,22 @@ class Grid(Node):
                     overflow_after_transport = max_overflow * protocol.transport_eff
                 else:
                     overflow_after_transport = max_overflow / protocol.transport_eff
-
-
-            # chose consumer
             else:
-                protocol_consumers = [p for p in self.protocols if p.balance < 0]
-                protocol_consumers.sort(key=lambda x: x.min_eff)
-                protocol = protocol_consumers[0]
-                overflow_after_transport = overflow * protocol.transport_eff
+
+                protocol_with_extern = [p for p in self.protocols if NodeTypes.EXTERN in p.types]
+                if protocol_with_extern:
+                    protocol = protocol_with_extern.pop()
+                    if protocol.balance < 0:
+                        overflow_after_transport = overflow * protocol.transport_eff
+                    else:
+                        overflow_after_transport = overflow / protocol.transport_eff
+
+                # chose consumer
+                else:
+                    protocol_consumers = [p for p in self.protocols if p.balance < 0]
+                    protocol_consumers.sort(key=lambda x: x.min_eff)
+                    protocol = protocol_consumers[0]
+                    overflow_after_transport = overflow * protocol.transport_eff
 
         else:
             # coal
@@ -215,10 +224,15 @@ class Grid(Node):
                     max_overflow = local_balance_return.balance if local_balance_return.balance > 0 else overflow
 
                 else:
-                    protocol_producers = [p for p in self.protocols if p.balance > 0]
-                    protocol_producers.sort(key=lambda x: x.min_eff)
-                    protocol = protocol_producers[0]
-                    max_overflow = overflow
+                    protocol_extern = [p for p in self.protocols if NodeTypes.EXTERN in p.types]
+                    if protocol_extern:
+                        protocol = protocol_extern.pop()
+                        max_overflow = overflow
+                    else:
+                        protocol_producers = [p for p in self.protocols if p.balance > 0]
+                        protocol_producers.sort(key=lambda x: x.min_eff)
+                        protocol = protocol_producers[0]
+                        max_overflow = overflow
 
             if protocol.balance > 0:
                 overflow_after_transport = max_overflow / protocol.transport_eff

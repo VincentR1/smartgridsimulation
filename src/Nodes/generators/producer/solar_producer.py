@@ -6,8 +6,8 @@ SUN_AVARAGE_DAWN_BERLIN_PER_MONTH = [8, 7.33, 6.33, 6.166, 5.166, 4.66, 5, 5.83,
 
 
 class SolarProducer(Producer):
-    def __init__(self, sun_hight, max_watts=200, efficency=0.14):
-        suppl_per_step = [sun * efficency if sun * efficency < max_watts else max_watts for sun in sun_hight]
+    def __init__(self, sun_hight, max_watts=200, efficency=0.14, qm=1):
+        suppl_per_step = [qm * sun * efficency if sun * efficency < max_watts else max_watts for sun in sun_hight]
         super().__init__(supply_per_step=suppl_per_step)
 
 

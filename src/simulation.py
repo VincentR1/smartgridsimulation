@@ -1,46 +1,46 @@
 import matplotlib.pyplot as plt
 
-from src.Nodes.grid import Grid
+from src.Nodes.generators.grids.city import get_city, get_green_city
+from src.Nodes.generators.producer.solar_producer import get_sun_power
+from src.Nodes.generators.producer.wind_producer import get_random_wind_velocities
+from src.Nodes.grid import Grid, AllData
 
 
-class Simulation:
-    def __init__(self, grid: Grid, steps: int):
+class Simulator:
+    def __init__(self, grid: Grid, steps: int, name: str, extern: False):
         self.grid = grid
-        if grid.steps != steps:
-            raise ValueError
         self.steps = steps
+        self.data = AllData([0] * steps, [0] * steps, [0] * steps, [0] * steps, [0] * steps, [0] * steps,
+                            [0] * steps, [0] * steps)
+        self.extern = extern
+        self.name = name
 
-        self.losses_on_network = [0] * steps
-        self.overproduction = [0] * steps
-        self.fullfild_demand_rel = [0] * steps
-        self.consumers = self.grid.consumers
-        self.producers = self.grid.producers
-
-        self.demand_unfullfild_consumer = [[0] * steps] * len(self.consumers)
+    def run(self):
+        self.grid.run_simulation()
+        self.data = self.grid.extract_data()
 
     def plot(self):
         x = range(self.steps)
-        producers = self.grid.get_producers()
-        consumers = self.grid.get_consumers()
-        fig, axs = plt.subplots(len(consumers), 1)
-        fig.suptitle("consumers")
-        for i in range(len(consumers)):
-            axs[i].plot(x, consumers[i].demand_per_step, 'r', x, consumers[i].bought_per_step)
-        fig2, axs2 = plt.subplots(len(producers), 1)
-        fig2.suptitle("producers")
-        for i in range(len(producers)):
-            axs2[i].plot(x, producers[i].supply_per_step, 'r', x, producers[i].sold_per_step)
+        fig = plt.figure()
+        fig.suptitle('name')
+
+        ax_demand = fig.add_subplot(211)
+        ax_demand.plot(x, self.data.demand, x, self.data.sold)
+        ax_demand.set_ylabel('Wh')
+        ax_demand.set_title('demand consumer')
+
+        ax_demand.plot()
+
         plt.show()
 
-    def run(self):
-        producers = self.grid.get_producers()
-        consumers = self.grid.get_consumers()
+    def clear(self):
+        self.grid.clear()
 
-        for step in range(self.steps):
-            distances = self.grid.get_distances(step)
-            production_prices = self.grid.get_prices(step)
-            offers = distances * production_prices
 
-            for index_consumer in range(len(consumers)):
-                offer = offers[index_consumer]
-                bought_from = consumers[index_consumer].give_offer_and_buy(offer, producers, step)
+if __name__ == "__main__":
+    steps = 24 * 7
+    grid = get_green_city(steps=steps, number=5, wind=get_random_wind_velocities(steps),
+                          sun=get_sun_power(months=6, days=steps / 24))
+    sim = Simulator(steps=steps, grid=grid, name='test', extern=False)
+    sim.run()
+    sim.plot()

@@ -1,6 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
-from src.Nodes.node import Node, BalanceReturn, SettleReturn, StorageInfo
+from src.Nodes.node import Node, BalanceReturn, SettleReturn, StorageInfo, DataReturn
 from src.Nodes.types import NodeTypes
 
 
@@ -13,6 +13,19 @@ class Protocol:
     min_eff: float
     types: Counter
     storage: StorageInfo
+
+
+@dataclass
+class AllData:
+    demand: [float]
+    bought: [float]
+    sold: [float]
+    supply: [float]
+    load: [float]
+    balance_battery: [float]
+    capacity: [float]
+    load: [float]
+    balance_extern: [float]
 
 
 class Grid(Node):
@@ -141,6 +154,7 @@ class Grid(Node):
             return self.balance_calculated[0]
 
     def __init__(self, steps: int, nodes: list[Node], transport_efficiencies: list[float]):
+        self.steps = steps
         self.nodes = nodes
         self.transport_efficiencies = transport_efficiencies
         self.steps = steps
@@ -216,6 +230,7 @@ class Grid(Node):
             # load batteries
             else:
                 protocol_with_capacity = [p for p in self.protocols if p.storage.capacity > 0]
+                if step == 0: print(protocol_with_capacity)
                 if protocol_with_capacity:
                     protocol_with_capacity.sort(key=lambda x: x.storage.min_dist_producer)
                     protocol = protocol_with_capacity[-1]
@@ -224,6 +239,7 @@ class Grid(Node):
                     max_overflow = local_balance_return.balance if local_balance_return.balance > 0 else overflow
 
                 else:
+                    if step == 0: print('hallo')
                     protocol_extern = [p for p in self.protocols if NodeTypes.EXTERN in p.types]
                     if protocol_extern:
                         protocol = protocol_extern.pop()
@@ -240,3 +256,53 @@ class Grid(Node):
                 overflow_after_transport = max_overflow * protocol.transport_eff
 
         protocol.node.settle(step, overflow_after_transport)
+
+    def extract_data(self) -> AllData:
+        ret = AllData(bought=[0] * self.steps,
+                      sold=[0] * self.steps,
+                      demand=[0] * self.steps,
+                      supply=[0] * self.steps,
+                      load=[0] * self.steps,
+                      capacity=[0] * self.steps,
+                      balance_battery=[0] * self.steps,
+                      balance_extern=[0] * self.steps)
+        for step in range(self.steps):
+            data_step = self.extract_data_step(step)
+            print(data_step)
+            ret.demand[step] = data_step.demand
+            ret.bought[step] = data_step.bought
+            ret.sold[step] = data_step.sold
+            ret.supply[step] = data_step.supply
+            ret.load[step] = data_step.load
+            ret.capacity[step] = data_step.capacity
+            ret.balance_battery[step] = data_step.capacity
+            ret.balance_extern[step] = data_step.balance_extern
+
+        return ret
+
+    def extract_data_step(self, step: int):
+        ret = DataReturn(demand=0,
+                         bought=0,
+                         sold=0,
+                         supply=0,
+                         load=0,
+                         balance_battery=0,
+                         capacity=0,
+                         balance_extern=0)
+
+        for n in self.nodes:
+            data_node = n.extract_data_step(step)
+            ret.demand += data_node.demand
+            ret.bought += data_node.bought
+            ret.sold += data_node.sold
+            ret.supply += data_node.supply
+            ret.load += data_node.load
+            ret.capacity += data_node.capacity
+            ret.balance_battery += data_node.capacity
+            ret.balance_extern += data_node.balance_extern
+
+        return ret
+
+    def clear(self):
+        for n in self.nodes:
+            n.clear()

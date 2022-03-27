@@ -48,7 +48,7 @@ class TestGrid(unittest.TestCase):
         output: BalanceReturn = grid.start(0)
         self.assertEqual(output.balance, 0)
         self.assertAlmostEqual(output.loss, 1000 * (1 - transport_eff ** 2))
-        self.assertEqual(storage.load[0], 6400)
+        self.assertEqual(storage.load_per_step[0], 6400)
 
     def test_storage_grid(self):
         grid = SimpleGrid(steps=1, number_producer=1, number_consumer=0, transportation_eff=transport_eff)
@@ -57,7 +57,7 @@ class TestGrid(unittest.TestCase):
         output: BalanceReturn = grid.start(0)
         self.assertEqual(output.balance, 0)
         self.assertAlmostEqual(output.loss, 200 / transport_eff / transport_eff * (1 - transport_eff ** 2))
-        self.assertEqual(storage.load[0], 1000)
+        self.assertEqual(storage.load_per_step[0], 1000)
 
     def test_coal(self):
         grid = SimpleGrid(steps=1, number_producer=4, number_consumer=1, transportation_eff=transport_eff)

@@ -1,10 +1,15 @@
 from collections import Counter
 
-from src.Nodes.node import BalanceReturn, StorageInfo, Node
+from src.Nodes.node import BalanceReturn, StorageInfo, Node, DataReturn
 from src.Nodes.types import NodeTypes
 
 
 class Extern(Node):
+    def extract_data_step(self, step: int) -> DataReturn:
+        return DataReturn(
+            0, 0, 0, 0, 0, 0, 0, self.sold_per_step[step]
+        )
+
     def clear_up(self, step: int):
         self.activated = False
 

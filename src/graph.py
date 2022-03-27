@@ -38,7 +38,7 @@ def grid_to_graph(grid2: Node, step, network, prev=0, i=0, ):
     elif isinstance(grid2, Storage):
         node = 'S' + str(i)
         value = grid2.sold_per_step[step]
-        load = grid2.load[step]
+        load = grid2.load_per_step[step]
         network.add_node(node, label='s',
                          title="b:" + str(value) + ",load:" + str(load) + ",cap:" + str(grid2.capacity), color="pink")
     if prev:

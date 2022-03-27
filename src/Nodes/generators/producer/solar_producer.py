@@ -1,3 +1,5 @@
+import numpy as np
+
 from src.Nodes.producer import Producer
 import math
 
@@ -12,13 +14,13 @@ class SolarProducer(Producer):
 
 
 def get_sun_power(sunrises=SUN_AVARAGE_DAWN_BERLIN_PER_MONTH, sun_noons=[12] * 12,
-                  avarage_sun_power=SUN_AVARAGE_DAWN_BERLIN_PER_MONTH, steps_per_day=24, days=1, months=4):
+                  avarage_sun_power=SUN_POWER_BERLIN_AVR_MONTH, steps_per_day=24, days=1, months=4):
     sig = (sun_noons[months] - sunrises[months]) / 3
     sig2 = sig ** 2
     e = sun_noons[months]
     sun_per_day = [0] * steps_per_day
     for step in range(steps_per_day):
         sun_per_day[step] = avarage_sun_power[months] * 1 / math.sqrt(2 * math.pi * sig2) * math.exp(
-            -(step - e) ** 2 / (2 * sig2))
-    sun = sun_per_day * days
+            -(step - e) ** 2 / (2 * sig2)) * 24
+    sun = sun_per_day * int(days)
     return sun

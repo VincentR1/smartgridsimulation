@@ -29,7 +29,6 @@ def draw_grid(steps: int, grid: Node, name: str):
         g = Network(height=500, width=500, directed=True)
         grid_to_graph(grid2=grid, step=step, network=g)
         g.barnes_hut()
-        g.show_buttons()
         g.show(name + str(step) + '.html')
 
 
@@ -55,7 +54,7 @@ if __name__ == "__main__":
     grid.run_simulation()
     draw_grid(steps, grid, 'without_battery')
     axs[2].plot(battery.sold_per_step)
-    axs[2].plot(battery.load)
+    axs[2].plot(battery.load_per_step)
     axs[1].plot(monitornode.sold_per_step)
 
     plt.show()

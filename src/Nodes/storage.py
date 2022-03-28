@@ -27,10 +27,10 @@ class Storage(Node):
                                              min_dist_producer=-1)))
 
     def settle(self, step: int, overflow: float):
-        print('battery called in step:' + str(step) + 'with: ' + str(overflow))
 
         if overflow >= 0:
             if overflow + self.load_per_step[step] > self.capacity:
+
                 self.sold_per_step[step] = self.load_per_step[step] - self.capacity
                 self.load_per_step[step] = self.capacity
             else:
@@ -51,4 +51,4 @@ class Storage(Node):
         pass
 
     def clear(self):
-        self.load_per_step = [self.load for i in self.load_per_step]
+        self.load_per_step = [self.starting_load for i in self.load_per_step]

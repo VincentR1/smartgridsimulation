@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from pyvis.network import Network
 
 from src.Nodes.consumer import Consumer
@@ -10,36 +12,40 @@ from src.Nodes.producer import Producer
 from src.Nodes.storage import Storage
 
 
-def grid_to_graph(grid2: Node, step, network, prev=0, i=0, ):
+def grid_to_graph(grid2: Node, step, network, prev=0):
     if isinstance(grid2, Extern):
-        node = 'e' + str(i)
+        node = 'e' + str(uuid4())
         value = grid2.sold_per_step[step]
         network.add_node(node, label='e', title='input:' + str(value))
 
-    if isinstance(grid2, Grid):
-        node = 'g' + str(i)
+    elif isinstance(grid2, Grid):
+        node = 'g' + str(uuid4())
         value = grid2.local_balances[step]
-        network.add_node(node, label='n', title=str(value))
+        if prev == 0:
+            title = "head"
+        else:
+            title = ""
+        network.add_node(node, label=title + 'n', title=title + " balance:" + str(value))
 
         for n in grid2.nodes:
-            i += 1
-            grid_to_graph(grid2=n, step=step, network=network, prev=node, i=i)
+            grid_to_graph(grid2=n, step=step, network=network, prev=node)
+
     elif isinstance(grid2, Producer):
-        node = 'P' + str(i)
+        node = 'P' + str(uuid4())
         value = grid2.sold_per_step[step]
-        network.add_node(node, label='p', title="b:" + str(value) + ",c:" + str(grid2.supply_per_step[step]),
+        network.add_node(node, label=node, title="b:" + str(value) + ",c:" + str(grid2.supply_per_step[step]),
                          color="red", value=grid2.supply_per_step[step])
     elif isinstance(grid2, Consumer):
-        node = 'C' + str(i)
+        node = 'C' + str(uuid4())
         value = -grid2.bought_per_step[step]
         demand = grid2.demand_per_step[step]
-        network.add_node(node, label='c', title="b:" +
-                                                str(value) + ",d:" + str(demand), color="green")
+        network.add_node(node, label=node, title="b:" +
+                                                 str(value) + ",d:" + str(demand), color="green")
     elif isinstance(grid2, Storage):
-        node = 'S' + str(i)
+        node = 'S' + str(uuid4())
         value = grid2.sold_per_step[step]
         load = grid2.load_per_step[step]
-        network.add_node(node, label='s',
+        network.add_node(node, label=node,
                          title="b:" + str(value) + ",load:" + str(load) + ",cap:" + str(grid2.capacity), color="pink")
     if prev:
         if value > 0:

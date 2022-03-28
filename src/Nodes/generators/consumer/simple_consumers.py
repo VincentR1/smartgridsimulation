@@ -48,6 +48,12 @@ class RandomConsumer(Consumer):
         super().__init__(demand_per_step)
 
 
+class Fabric(Consumer):
+    def __init__(self, steps, value=50000, schwankung=.2):
+        demand = [((random.random() * schwankung) + (1 - schwankung / 2) * value) for i in range(steps)]
+        super().__init__(demand)
+
+
 if __name__ == "__main__":
     steps = 7 * 24
     h = RandomConsumer(steps=steps)

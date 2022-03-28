@@ -177,7 +177,7 @@ class Grid(Node):
 
     def start_settling(self, step, overflow):
         updated_overflow = overflow
-        while updated_overflow < - 0.05 or updated_overflow > 0.05:
+        while updated_overflow < - 5000 or updated_overflow > 5000:
             self.settle(step, updated_overflow),
             balance_return = self.get_balance(step)
             updated_overflow = balance_return.balance
@@ -230,7 +230,6 @@ class Grid(Node):
             # load batteries
             else:
                 protocol_with_capacity = [p for p in self.protocols if p.storage.capacity > 0]
-                if step == 0: print(protocol_with_capacity)
                 if protocol_with_capacity:
                     protocol_with_capacity.sort(key=lambda x: x.storage.min_dist_producer)
                     protocol = protocol_with_capacity[-1]
@@ -239,7 +238,6 @@ class Grid(Node):
                     max_overflow = local_balance_return.balance if local_balance_return.balance > 0 else overflow
 
                 else:
-                    if step == 0: print('hallo')
                     protocol_extern = [p for p in self.protocols if NodeTypes.EXTERN in p.types]
                     if protocol_extern:
                         protocol = protocol_extern.pop()
@@ -268,14 +266,13 @@ class Grid(Node):
                       balance_extern=[0] * self.steps)
         for step in range(self.steps):
             data_step = self.extract_data_step(step)
-            print(data_step)
             ret.demand[step] = data_step.demand
             ret.bought[step] = data_step.bought
             ret.sold[step] = data_step.sold
             ret.supply[step] = data_step.supply
             ret.load[step] = data_step.load
             ret.capacity[step] = data_step.capacity
-            ret.balance_battery[step] = data_step.capacity
+            ret.balance_battery[step] = data_step.balance_battery
             ret.balance_extern[step] = data_step.balance_extern
 
         return ret
@@ -298,7 +295,7 @@ class Grid(Node):
             ret.supply += data_node.supply
             ret.load += data_node.load
             ret.capacity += data_node.capacity
-            ret.balance_battery += data_node.capacity
+            ret.balance_battery += data_node.balance_battery
             ret.balance_extern += data_node.balance_extern
 
         return ret

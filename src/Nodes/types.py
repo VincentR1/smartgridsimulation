@@ -7,3 +7,4 @@ class NodeTypes(Enum):
     PRODUCER = auto()
     COAL = auto()
     GRID = auto()
+    EXTERN = auto()

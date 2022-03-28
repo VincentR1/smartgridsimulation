@@ -1,10 +1,15 @@
 from collections import Counter
 
-from src.Nodes.node import Node, SettleReturn, BalanceReturn, StorageInfo
+from src.Nodes.node import Node, SettleReturn, BalanceReturn, StorageInfo, DataReturn
 from src.Nodes.types import NodeTypes
 
 
 class Producer(Node):
+    def extract_data_step(self, step: int) -> DataReturn:
+        return DataReturn(demand=0, bought=0, sold=self.sold_per_step[step], supply=self.supply_per_step[step],
+                          balance_extern=0,
+                          load=0, capacity=0, balance_battery=0)
+
     def clear_up(self, step: int):
         if not self.activated:
             self.sold_per_step[step] = self.supply_per_step[step]
@@ -31,3 +36,6 @@ class Producer(Node):
                 self.sold_per_step[step] = self.supply_per_step[step] - overflow
         else:
             print("settle was given a negativ overflow in in a producer")
+
+    def clear(self):
+        self.sold_per_step = [0 for i in self.sold_per_step]

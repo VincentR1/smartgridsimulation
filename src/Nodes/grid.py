@@ -1,6 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
-from src.Nodes.node import Node, BalanceReturn, SettleReturn, StorageInfo
+from src.Nodes.node import Node, BalanceReturn, SettleReturn, StorageInfo, DataReturn
 from src.Nodes.types import NodeTypes
 
 
@@ -15,6 +15,19 @@ class Protocol:
     storage: StorageInfo
 
 
+@dataclass
+class AllData:
+    demand: [float]
+    bought: [float]
+    sold: [float]
+    supply: [float]
+    load: [float]
+    balance_battery: [float]
+    capacity: [float]
+    load: [float]
+    balance_extern: [float]
+
+
 class Grid(Node):
     def clear_up(self, step: int):
         self.balance_calculated.pop()
@@ -26,6 +39,10 @@ class Grid(Node):
         result = self.start_settling(step, balance_return.balance)
         self.clear_up(step)
         return result
+
+    def run_simulation(self):
+        for i in range(len(self.local_balances)):
+            self.start(i)
 
     # gives back (balance,loss)
     def get_balance(self, step: int) -> BalanceReturn:
@@ -137,6 +154,7 @@ class Grid(Node):
             return self.balance_calculated[0]
 
     def __init__(self, steps: int, nodes: list[Node], transport_efficiencies: list[float]):
+        self.steps = steps
         self.nodes = nodes
         self.transport_efficiencies = transport_efficiencies
         self.steps = steps
@@ -159,12 +177,10 @@ class Grid(Node):
 
     def start_settling(self, step, overflow):
         updated_overflow = overflow
-        while updated_overflow != 0:
+        while updated_overflow < - 5000 or updated_overflow > 5000:
             self.settle(step, updated_overflow),
             balance_return = self.get_balance(step)
             updated_overflow = balance_return.balance
-
-        return balance_return
 
     def settle(self, step, overflow):
         overflow = overflow
@@ -172,7 +188,6 @@ class Grid(Node):
         protocol: Protocol
         local_balance_return = self.balance_calculated.pop()
         if overflow < 0:
-
             # discharge batteries
             protocol_with_load = [p for p in self.protocols if p.storage.load > 0]
             # chose the one closest to counsumer
@@ -187,14 +202,22 @@ class Grid(Node):
                     overflow_after_transport = max_overflow * protocol.transport_eff
                 else:
                     overflow_after_transport = max_overflow / protocol.transport_eff
-
-
-            # chose consumer
             else:
-                protocol_consumers = [p for p in self.protocols if p.balance < 0]
-                protocol_consumers.sort(key=lambda x: x.min_eff)
-                protocol = protocol_consumers[0]
-                overflow_after_transport = overflow * protocol.transport_eff
+
+                protocol_with_extern = [p for p in self.protocols if NodeTypes.EXTERN in p.types]
+                if protocol_with_extern:
+                    protocol = protocol_with_extern.pop()
+                    if protocol.balance < 0:
+                        overflow_after_transport = overflow * protocol.transport_eff
+                    else:
+                        overflow_after_transport = overflow / protocol.transport_eff
+
+                # chose consumer
+                else:
+                    protocol_consumers = [p for p in self.protocols if p.balance < 0]
+                    protocol_consumers.sort(key=lambda x: x.min_eff)
+                    protocol = protocol_consumers[0]
+                    overflow_after_transport = overflow * protocol.transport_eff
 
         else:
             # coal
@@ -215,10 +238,15 @@ class Grid(Node):
                     max_overflow = local_balance_return.balance if local_balance_return.balance > 0 else overflow
 
                 else:
-                    protocol_producers = [p for p in self.protocols if p.balance > 0]
-                    protocol_producers.sort(key=lambda x: x.min_eff)
-                    protocol = protocol_producers[0]
-                    max_overflow = overflow
+                    protocol_extern = [p for p in self.protocols if NodeTypes.EXTERN in p.types]
+                    if protocol_extern:
+                        protocol = protocol_extern.pop()
+                        max_overflow = overflow
+                    else:
+                        protocol_producers = [p for p in self.protocols if p.balance > 0]
+                        protocol_producers.sort(key=lambda x: x.min_eff)
+                        protocol = protocol_producers[0]
+                        max_overflow = overflow
 
             if protocol.balance > 0:
                 overflow_after_transport = max_overflow / protocol.transport_eff
@@ -226,3 +254,52 @@ class Grid(Node):
                 overflow_after_transport = max_overflow * protocol.transport_eff
 
         protocol.node.settle(step, overflow_after_transport)
+
+    def extract_data(self) -> AllData:
+        ret = AllData(bought=[0] * self.steps,
+                      sold=[0] * self.steps,
+                      demand=[0] * self.steps,
+                      supply=[0] * self.steps,
+                      load=[0] * self.steps,
+                      capacity=[0] * self.steps,
+                      balance_battery=[0] * self.steps,
+                      balance_extern=[0] * self.steps)
+        for step in range(self.steps):
+            data_step = self.extract_data_step(step)
+            ret.demand[step] = data_step.demand
+            ret.bought[step] = data_step.bought
+            ret.sold[step] = data_step.sold
+            ret.supply[step] = data_step.supply
+            ret.load[step] = data_step.load
+            ret.capacity[step] = data_step.capacity
+            ret.balance_battery[step] = data_step.balance_battery
+            ret.balance_extern[step] = data_step.balance_extern
+
+        return ret
+
+    def extract_data_step(self, step: int):
+        ret = DataReturn(demand=0,
+                         bought=0,
+                         sold=0,
+                         supply=0,
+                         load=0,
+                         balance_battery=0,
+                         capacity=0,
+                         balance_extern=0)
+
+        for n in self.nodes:
+            data_node = n.extract_data_step(step)
+            ret.demand += data_node.demand
+            ret.bought += data_node.bought
+            ret.sold += data_node.sold
+            ret.supply += data_node.supply
+            ret.load += data_node.load
+            ret.capacity += data_node.capacity
+            ret.balance_battery += data_node.balance_battery
+            ret.balance_extern += data_node.balance_extern
+
+        return ret
+
+    def clear(self):
+        for n in self.nodes:
+            n.clear()

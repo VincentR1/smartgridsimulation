@@ -37,6 +37,19 @@ class SettleReturn:
     settled: bool
 
 
+@dataclass
+class DataReturn:
+    demand: float
+    bought: float
+    sold: float
+    supply: float
+    load: float
+    balance_battery: float
+    capacity: float
+    load: float
+    balance_extern: float
+
+
 class Node(ABC):
     @abstractmethod
     def get_balance(self, step: int) -> BalanceReturn:
@@ -46,6 +59,16 @@ class Node(ABC):
     def settle(self, step: int, overflow: float):
         pass
 
+    # is used to set values in leaves, which haven't been touched during settle
     @abstractmethod
     def clear_up(self, step: int):
+        pass
+
+    @abstractmethod
+    def extract_data_step(self, step: int) -> DataReturn:
+        pass
+
+    # resets a grid after usage
+    @abstractmethod
+    def clear(self):
         pass

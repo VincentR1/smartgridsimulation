@@ -11,4 +11,4 @@ class WindTurbineProducer(Producer):
 
 
 def get_random_wind_velocities(steps, shape=2.31, average_v=6.6):
-    return average_v * np.random.weibull(steps).tolist()
+    return (average_v * np.random.weibull(a=shape, size=steps)).tolist()

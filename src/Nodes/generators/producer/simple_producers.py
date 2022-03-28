@@ -3,7 +3,7 @@ from src.Nodes.producer import Producer
 
 
 class SimpleProducer(Producer):
-    def __init__(self, steps, value=10000):
+    def __init__(self, steps, value=1000):
         super().__init__(supply_per_step=[value] * steps)
 
 

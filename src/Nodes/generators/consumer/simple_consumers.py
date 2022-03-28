@@ -1,28 +1,22 @@
-from random import random
+import math
+import random
 
-from config import AVRG_CONSUMTION, WINDOW
+import matplotlib.pyplot as plt
+import numpy
+import numpy as np
+
 from src.Nodes.consumer import Consumer
-from matplotlib import pyplot as plt
 
 
 class SimpleConsumer(Consumer):
-    def __init__(self, steps, value=10000):
+    def __init__(self, steps, value=1000):
         demand_per_step = [value] * steps
         super().__init__(demand_per_step)
 
 
-class RandomSingleHouse(Consumer):
-    def __init__(self, steps, number_Persons):
-        averarage_demand_in_watt_per_person_per_steps = AVRG_CONSUMTION
-        demand_per_step = [(random.random() + 1) * averarage_demand_in_watt_per_person_per_steps * WINDOW[i] for i in
-                           range(steps)]
-        super(demand_per_step)
-
-
-
 class DayOnNightOff(Consumer):
-    def __init__(self, steps, value=100):
-        day_time = [6, 7, 8, 9, 10]
+    def __init__(self, steps, value=20000):
+        day_time = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
         demand_per_step = [0] * steps
         for i in range(steps):
             if i % 24 in day_time:
@@ -33,6 +27,37 @@ class DayOnNightOff(Consumer):
 
 
 class RandomSwitchingConsumer(Consumer):
-    def __init__(self, steps, value=100):
-        demand_per_step = [random.randint(0, 1) * value for i in range(steps)]
+    def __init__(self, steps, value=2000):
+        demand_per_step = [random.randint(0, 1) * value + random.randint(0, 1) * value + random.randint(0, 1) * value
+                           for i in range(steps)]
         super().__init__(demand_per_step)
+
+
+class RandomConsumer(Consumer):
+    def __init__(self, steps, value=3600):
+        sigma = 3
+        daytime_window = [0.2, 0.2, 0.3, 0.5,
+                          0.7, 1.3, 1.4, 1.4,
+                          1, 0.7, .9, 1.2,
+                          1.3, 1, 0.8, 1, 2,
+                          3, 2, 1, 0.8, 0.4,
+                          0.3, 0.2]
+
+        demand_per_step = [random.random() * 2 * value * daytime_window[i % 24]
+                           for i in range(steps)]
+        super().__init__(demand_per_step)
+
+
+class Fabric(Consumer):
+    def __init__(self, steps, value=50000, schwankung=.2):
+        demand = [((random.random() * schwankung) + (1 - schwankung / 2) * value) for i in range(steps)]
+        super().__init__(demand)
+
+
+if __name__ == "__main__":
+    steps = 7 * 24
+    h = RandomConsumer(steps=steps)
+    print(np.mean(h.demand_per_step))
+    plt.plot(h.demand_per_step)
+
+    plt.show()
